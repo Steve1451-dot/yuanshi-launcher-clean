@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>终末地 · 设备确认</title>
+<style>
+body{margin:0;background:#10151b;color:#eef3f7;font:17px/1.7 system-ui,sans-serif}main{max-width:540px;margin:7vh auto;padding:36px;background:#1a222b;border:1px solid #35414c;border-radius:16px}small{color:#a8b6c4}h1{font-size:27px;margin:4px 0 20px}button,input{font:inherit;border-radius:9px;padding:12px 18px;box-sizing:border-box}button{background:#d7f67d;color:#152016;border:0;cursor:pointer}button:disabled{opacity:.45;cursor:wait}input{display:block;width:100%;margin:16px 0;background:#111820;border:1px solid #596674;color:#fff;letter-spacing:.6em;text-align:center}#status{margin:24px 0 8px;min-height:60px;white-space:pre-wrap}#done{display:none;color:#d7f67d}.row{display:flex;gap:12px;align-items:center}#submit{flex:1}.note{margin-top:24px;border-top:1px solid #35414c;padding-top:18px;font-size:14px;color:#a8b6c4}
+</style>
+<main><small>保留已保存的账号 · 无需重新扫码</small><h1>完成官方设备确认</h1>
+<p>官方服务要求验证当前设备。点击后，验证码会发送到该账号绑定的手机。</p>
+<button id="send">发送验证码</button>
+<form id="form" autocomplete="off"><label for="code">手机验证码</label><input id="code" name="verification" type="password" inputmode="numeric" pattern="[0-9]{6}" minlength="6" maxlength="6" autocomplete="one-time-code" required placeholder="六位数字" aria-label="手机验证码">
+<div class="row"><button id="submit" type="submit">确认设备并继续</button></div></form>
+<div id="status" role="status">准备就绪。发送验证码前不会发起短信请求。</div>
+<p id="done">设备已确认并加密保存。可以回到游戏继续加载。</p>
+<div class="note">这是本机辅助页面，使用官方验证接口。账号凭据留在本机服务内；验证码不经过聊天、不写入日志。若出现图形验证，请由你本人完成。</div></main>
+<script src="/gt4.js"></script><script>
+const send=document.getElementById('send'),form=document.getElementById('form'),submit=document.getElementById('submit'),code=document.getElementById('code'),status=document.getElementById('status');
+let busy=false,cooldown=0;
+function lock(value){busy=value;send.disabled=value||cooldown>0;submit.disabled=value;}
+function timer(){cooldown=60;const handle=setInterval(()=>{cooldown--;send.textContent=cooldown>0?`等待 ${cooldown} 秒`:'重新发送验证码';send.disabled=busy||cooldown>0;if(!cooldown)clearInterval(handle);},1000);}
+async function request(path,body={}){
+  const response=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json','X-CGNX-Verification':'1'},body:JSON.stringify(body)});
+  return response.json();
+}
+async function perform(path,body={}){
+ lock(true);status.textContent='正在向官方服务提交，请稍候…';
+ try{
+  const result=await request(path,body);
+  if(result.captcha){
+   status.textContent='请完成官方图形验证。';
+   return await new Promise(resolve=>{
+    initGeetest4({captchaId:result.captcha.geetestId,riskType:result.captcha.riskType,product:'bind',language:'zho'},widget=>{
+     widget.onReady(()=>widget.showCaptcha());
+     widget.onSuccess(async()=>{const answer=widget.getValidate();widget.destroy();if(answer)await perform(path,{...body,captcha:{...answer,challenge:result.captcha.challenge}});resolve();});
+     widget.onClose(()=>{widget.destroy();status.textContent='图形验证已取消，可重新操作。';resolve();});
+     widget.onError(()=>{widget.destroy();status.textContent='图形验证未完成，请稍后重试。';resolve();});
+    });
+   });
+  }
+  if(result.state==='SmsSent'){timer();status.textContent='验证码已发送，请在此页面输入六位数字。';code.focus();}
+  else if(result.state==='DeviceVerified'){code.value='';return await perform('/authorize');}
+  else if(result.state==='Complete'){code.value='';form.hidden=true;send.hidden=true;document.getElementById('done').style.display='block';status.textContent='官方设备验证与游戏授权均已成功。';}
+  else if(result.state==='Cooldown')status.textContent='请稍候再重新发送。';
+  else if(result.state==='InvalidCode')status.textContent='请输入完整的六位手机验证码。';
+  else if(result.state==='NeedsDeviceVerification')status.textContent='官方仍要求设备验证，请完成手机确认。';
+  else status.textContent=`本次验证未完成（官方状态 ${result.status??-1}），请检查后重试。`;
+ }catch{status.textContent='连接未完成，请稍后重试；账号仍然保留。';}
+ finally{delete body.code;lock(false);}
+}
+send.addEventListener('click',()=>{if(!busy)perform('/send');});
+form.addEventListener('submit',event=>{event.preventDefault();if(!busy&&/^[0-9]{6}$/.test(code.value)){const value=code.value;code.value='';perform('/verify',{code:value});}});
+</script></html>

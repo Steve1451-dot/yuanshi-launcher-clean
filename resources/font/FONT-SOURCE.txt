@@ -1,0 +1,18 @@
+Noto Sans SC Regular (static instance of the variable font)
+Bundled as romfs:/font/font.ttf, loaded by Borealis as FONT_CHINESE_SIMPLIFIED.
+
+Source: google/fonts repository, ofl/notosanssc/NotoSansSC[wght].ttf (OFL-1.1)
+        https://github.com/google/fonts/tree/main/ofl/notosanssc
+License: NOTO-OFL.txt in this directory (SIL Open Font License 1.1)
+
+Derivation (so the romfs copy can be reproduced):
+  python -m fontTools.varLib.instancer "NotoSansSC[wght].ttf" wght=400 --output font.ttf
+  fontTools 4.61.1
+
+SHA256 (font.ttf): 1FBC180FA9750C1A4608C501DA559AFA1FD8A723ACBBC197BC418C7D9F49266B
+
+Why bundled: on systems without the real console shared fonts (emulators such
+as yuzu synthesize them from Open Sans, which has no CJK glyphs) Chinese text
+would otherwise render blank. Borealis prefers romfs:/font/font.ttf over the
+shared font when present, so this file also guarantees identical Chinese
+rendering on real hardware.

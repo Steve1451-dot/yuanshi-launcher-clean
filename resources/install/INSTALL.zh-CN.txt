@@ -1,0 +1,22 @@
+yuanshi launcher @VERSION@
+
+安装：
+1. 将本包中的 switch 文件夹合并到 SD 卡根目录。
+2. 使用完整应用模式进入 hbmenu / sphaira。
+3. 打开 yuanshi launcher。
+
+目录与状态：
+- 只使用 switch/yuanshi-launcher/yuanshi-launcher.nro 和同目录数据。
+- 不读取或自动迁移旧目录，第一次使用需重新登录、设置本地配置。
+- 不自动删除旧数据；之后在新目录内更新可保留配置。
+- 本包不含登录凭据、自动测试或设备信息同意标记。
+- 右下角网络 RTT 为透明文字；未知时显示 -- ms。
+- 进度：ys 100%、zmd 100%；bt 进度较低，1001_2 仍在排查。
+
+包含：
+- switch/yuanshi-launcher/yuanshi-launcher.nro
+- switch/yuanshi-launcher/icon.jpg
+- switch/yuanshi-launcher/icon.png
+- README.md
+- LICENSE
+- docs/（有发布说明时包含）

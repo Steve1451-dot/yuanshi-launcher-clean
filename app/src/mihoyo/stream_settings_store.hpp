@@ -26,8 +26,8 @@ inline std::string StreamSettingsPath(const std::string& home,std::string_view p
     return {};
 }
 
-// Legacy two-integer preferences upgrade to low/60. New tagged preferences
-// preserve subsequent explicit choices, including 30 FPS. Never rewrite on read.
+// Preserve explicit choices from both supported formats. Never replace a valid
+// saved preference with startup defaults or rewrite the file while reading it.
 inline SavedSettings LoadSavedSettings(const std::string& path) {
     if(path.empty()) return {};
     const auto parse=[&](const std::string& file) {
@@ -40,7 +40,7 @@ inline SavedSettings LoadSavedSettings(const std::string& path) {
         if(!(in>>graphics>>fps)) return SavedSettings{};
         if(!ValidGraphics(graphics) || !ValidFps(fps)) return SavedSettings{};
         in>>std::ws;
-        if(in.eof()) return SavedSettings{true,kStartupGraphicsMode,kStartupStreamFps};
+        if(in.eof()) return SavedSettings{true,graphics,fps};
         std::string revision;
         if(!(in>>revision) || revision!="CGNX-LOW60-V1") return SavedSettings{};
         in>>std::ws;

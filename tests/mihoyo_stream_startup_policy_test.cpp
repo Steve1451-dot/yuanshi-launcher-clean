@@ -4,7 +4,8 @@
 int main() {
     using namespace cloudgenshin;
     using S=VideoProgressWatchdog::State;
-    static_assert(kStartupStreamFps==60 && kStartupGraphicsMode==control::kGraphicsExtremeSaving);
+    static_assert(kStartupStreamFps==60 && kStartupGraphicsMode==control::kGraphicsHighQuality);
+    static_assert(kStartupBitRate==12000*1024);
     VideoProgressWatchdog watch;
     assert(watch.update(0,0,0,false).state==S::Inactive);
     assert(watch.update(10,0,0,true).state==S::Healthy);

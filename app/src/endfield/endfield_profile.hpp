@@ -60,12 +60,11 @@ inline constexpr int kCodecTypeH264 = 18;
 inline constexpr int kBitRateLow = 4000;
 inline constexpr int kBitRateMedium = 8000;
 inline constexpr int kBitRateHigh = 12000;
-// Our default: lowest tier (省流).
-inline constexpr int kDefaultBitRate = kBitRateLow;
-inline constexpr std::string_view kDefaultBitRateLevel = "low";
-// User-requested low-bitrate/60 FPS default, in dispatch and runtime settings.
+// Highest quality / 60 FPS fallback; saved per-game choices take priority.
+inline constexpr int kDefaultBitRate = kBitRateHigh;
+inline constexpr std::string_view kDefaultBitRateLevel = "high";
 inline constexpr int kDispatchFps = 60;
-// Our runtime 省流 preference (applied via SetFps after the first frame).
+// Runtime fallback (applied via SetFps after the first frame).
 inline constexpr int kDefaultStreamFps = 60;
 // Dispatch video resolution (16:9; libreathing decoder path).
 inline constexpr int kDispatchWidth = 1280;

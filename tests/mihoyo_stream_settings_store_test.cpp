@@ -24,7 +24,7 @@ int main() {
     assert(SaveSavedSettings(path,1,60));
     const auto saved=LoadSavedSettings(path);
     assert(saved.valid && saved.graphics==1 && saved.fps==60);
-    // A new Star Rail install uses its own low/60 fallback, not Genshin's saved
+    // A new Star Rail install uses its own high/60 fallback, not Genshin's saved
     // preference. Later changes never overwrite another game's primary/backup.
     assert(!LoadSavedSettings(sr).valid);
     assert(SaveSavedSettings(sr,2,30));
@@ -53,8 +53,14 @@ int main() {
     const auto recovered=LoadSavedSettings(path);
     assert(recovered.valid && recovered.graphics==2 && recovered.fps==30);
     {std::ofstream out(path);out<<"0 30";}
-    const auto migrated=LoadSavedSettings(path);
-    assert(migrated.valid && migrated.graphics==2 && migrated.fps==60);
+    const auto untagged=LoadSavedSettings(path);
+    assert(untagged.valid && untagged.graphics==0 && untagged.fps==30);
+    // Saved lower settings also override the new high/60 default. Reading
+    // either supported format must leave the saved data intact.
+    {std::ofstream out(path);out<<"2 30";}
+    const auto lower=LoadSavedSettings(path);
+    assert(lower.valid && lower.graphics==2 && lower.fps==30);
+    {std::ifstream in(path);std::string value((std::istreambuf_iterator<char>(in)),{});assert(value=="2 30");}
     assert(SaveSavedSettings(path,0,30));
     assert(LoadSavedSettings(path).graphics==0 && LoadSavedSettings(path).fps==30);
     for(const auto* invalid:{"0 30 bad", "0 30 CGNX-LOW60-V1 trailing"}) {

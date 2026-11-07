@@ -120,6 +120,23 @@ int main() {
     assert(report.at("VIDEO_RECOVERY_TOTAL_LAST_US")>=report.at("VIDEO_RECOVERY_IDR_LAST_US"));
     assert(report.at("VIDEO_RECOVERY_OUTPUT_MAX_US")==report.at("VIDEO_RECOVERY_OUTPUT_LAST_US"));
     pipeline.stop();
+    // A brief repaired burst at 30 FPS must not flush valid references just
+    // because five pictures arrived together. Decoding remains age bounded.
+    assert(pipeline.start(30));blocked=true;entered=false;
+    send(pipeline,1);await([]{return entered.load();});
+    for(unsigned i=2;i<=6;++i) send(pipeline,i,false);
+    assert(pipeline.queue_depth()==5 && pipeline.performance().congestion_events==0);
+    blocked=false;gate.notify_all();await([&]{return pipeline.decoded()==6;});
+    assert(!pipeline.take_keyframe_request());pipeline.stop();
+    // With no further network arrivals, a stalled decode must still discard
+    // stale queued units and request a fresh IDR rather than replay old work.
+    assert(pipeline.start(30));blocked=true;entered=false;
+    send(pipeline,1);await([]{return entered.load();});send(pipeline,2,false);send(pipeline,3,false);
+    std::this_thread::sleep_for(std::chrono::milliseconds(90));
+    blocked=false;gate.notify_all();
+    await([&]{return pipeline.performance().congestion_events==1 && pipeline.queue_depth()==0;});
+    assert(pipeline.decoded()==1 && pipeline.take_keyframe_request());
+    send(pipeline,4);await([&]{return pipeline.decoded()==2;});pipeline.stop();
     assert(pipeline.start(60));blocked=true;entered=false;send(pipeline,1);await([]{return entered.load();});
     for(unsigned i=2;i<80;++i) send(pipeline,i,false);
     assert(pipeline.queue_depth()<=8 && pipeline.performance().congestion_events>0);

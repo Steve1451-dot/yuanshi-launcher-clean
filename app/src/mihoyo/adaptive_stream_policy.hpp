@@ -11,7 +11,7 @@ namespace cloudgenshin {
 // absolute ping. The user's selection remains the recovery ceiling.
 class AdaptiveStream {
 public:
-    struct Sample {std::uint32_t completed=0,damaged=0,timeouts=0,capacity=0,congestion=0;};
+    struct Sample {std::uint32_t completed=0,damaged=0,timeouts=0,capacity=0,congestion=0,waiting_idr=0;};
     enum class Kind {Bitrate,Fps};
     struct Adjustment {Kind kind;StreamBitrateRange bitrate;int fps;};
     bool configure(StreamBitrateRange range,int fps,std::int64_t now) {
@@ -26,7 +26,7 @@ public:
     }
     // Pause during manual delivery/control-channel recovery. A stale automatic
     // request must not overwrite a newer selection when transport returns.
-    void suspend() {pending_.reset();have_sample_=false;bad_=decode_bad_=0;clean_ms_=0;}
+    void suspend() {pending_.reset();have_sample_=loss_recovery_=false;bad_=decode_bad_=0;clean_ms_=0;}
     void observe(std::int64_t now,Sample sample) {
         if(!current_.maximum) return;
         const bool restart=have_sample_ && (now<sample_ms_ || now-sample_ms_>6000 || reset(sample));
@@ -39,17 +39,21 @@ public:
         if(elapsed<2000) return;
         const Sample d{sample.completed-previous_.completed,sample.damaged-previous_.damaged,
             sample.timeouts-previous_.timeouts,sample.capacity-previous_.capacity,
-            sample.congestion-previous_.congestion};
+            sample.congestion-previous_.congestion,sample.waiting_idr-previous_.waiting_idr};
         previous_=sample;sample_ms_=now;
         const auto total=static_cast<std::uint64_t>(d.completed)+d.damaged;
-        const bool pressure=d.capacity>0 || (d.damaged>=3 &&
+        // One lost reference picture can discard dozens of complete dependent
+        // pictures. Count that impact even when AU loss stays below 3/window.
+        loss_recovery_=d.damaged>0 || (loss_recovery_ && d.waiting_idr>0);
+        const bool recovery_pressure=loss_recovery_ && d.waiting_idr>=15;
+        const bool pressure=recovery_pressure || d.capacity>0 || (d.damaged>=3 &&
             (static_cast<std::uint64_t>(d.damaged)*100>=total*2 || d.timeouts>=3));
-        const bool severe=d.capacity>=2 || (d.damaged>=6 &&
+        const bool severe=(recovery_pressure && d.waiting_idr>=30) || d.capacity>=2 || (d.damaged>=6 &&
             static_cast<std::uint64_t>(d.damaged)*100>=total*10);
         bad_=pressure ? bad_+1 : 0;
         decode_bad_=d.congestion ? decode_bad_+1 : 0;
         const bool clean=d.completed*1000ULL>=static_cast<std::uint64_t>(elapsed)*15 &&
-            !d.damaged && !d.timeouts && !d.capacity && !d.congestion;
+            !d.damaged && !d.timeouts && !d.capacity && !d.congestion && !d.waiting_idr;
         clean_ms_=clean ? clean_ms_+elapsed : 0;
         if(pending_ || now<next_change_) return;
         if(decode_bad_>=2 && fps_==60) enqueue(Kind::Fps,current_,30);
@@ -87,7 +91,8 @@ public:
 private:
     bool reset(Sample s) const {
         return s.completed<previous_.completed || s.damaged<previous_.damaged ||
-            s.timeouts<previous_.timeouts || s.capacity<previous_.capacity || s.congestion<previous_.congestion;
+            s.timeouts<previous_.timeouts || s.capacity<previous_.capacity || s.congestion<previous_.congestion ||
+            s.waiting_idr<previous_.waiting_idr;
     }
     void enqueue(Kind kind,StreamBitrateRange range,int fps) {
         pending_=Adjustment{kind,range,fps};revision_+=1024;any_accepted_=false;
@@ -96,7 +101,7 @@ private:
     StreamBitrateRange preferred_{0,0},current_{0,0};
     int preferred_fps_=60,fps_=60;
     Sample previous_;
-    bool have_sample_=false,any_accepted_=false;
+    bool have_sample_=false,any_accepted_=false,loss_recovery_=false;
     unsigned bad_=0,decode_bad_=0;
     std::int64_t sample_ms_=0,next_change_=0,clean_ms_=0;
     std::uint64_t revision_=0;

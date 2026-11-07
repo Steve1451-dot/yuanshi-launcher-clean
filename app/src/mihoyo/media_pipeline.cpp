@@ -70,7 +70,7 @@ void MediaPipeline::video(const PeerVideoPacket& packet) {
     else ++large_units_;
     std::lock_guard lock(mutex_);
     const auto now=std::chrono::steady_clock::now();
-    if (queue_.size()>=opennow::video::MaximumQueuedAccessUnits(fps_) ||
+    if (queue_.size()>=opennow::video::MaximumRepairBurstAccessUnits(fps_) ||
         (!queue_.empty() && now-queue_.front().queued>=std::chrono::milliseconds(opennow::video::MaximumDecodeQueueDelayMs()))) {
         ++congestion_events_;congestion_drops_.fetch_add(static_cast<unsigned>(queue_.size()));
         drops_.fetch_add(static_cast<unsigned>(queue_.size()));clear_queue_locked();begin_resync_locked();
@@ -124,6 +124,15 @@ void MediaPipeline::decode_loop() {
             std::unique_lock lock(mutex_);
             wake_.wait(lock,[this]{return !running_ || !queue_.empty();});
             if (!running_) break;
+            // Also enforce age when no new packet arrives to run video's
+            // enqueue check. Extra repair-burst slots must not retain stale
+            // dependent pictures after a slow decode or network pause.
+            if(std::chrono::steady_clock::now()-queue_.front().queued>=
+               std::chrono::milliseconds(opennow::video::MaximumDecodeQueueDelayMs())) {
+                ++congestion_events_;congestion_drops_.fetch_add(static_cast<unsigned>(queue_.size()));
+                drops_.fetch_add(static_cast<unsigned>(queue_.size()));
+                clear_queue_locked();begin_resync_locked();continue;
+            }
             unit=std::move(queue_.front());queue_.pop_front();
             queue_depth_=static_cast<unsigned>(queue_.size());
             if (!recovery_.is_current(unit.generation)) {++drops_;++stale_drops_;recycle_locked(std::move(unit.bytes));continue;}

@@ -289,11 +289,11 @@ int main() {
     Reset(Scenario::QueueSuccess);
     auto result=Launch(profile,*authorization,cancelled,progress);
     assert(result && prepared==4 && dispatched==1 && polls==1 && acks==1 && leaves==0);
-    // A saved high-quality/30 FPS choice must change the signed dispatch, not
-    // just the overlay after a pod was already allocated with the low ceiling.
+    // A saved low-quality/30 FPS choice overrides high/60 in the signed
+    // dispatch, before a pod is allocated or an overlay is constructed.
     const auto settings_path=overlay::StreamSettingsPath(settings_home,profile.id);
-    assert(overlay::SaveSavedSettings(settings_path,0,30));
-    expected_graphics=0;expected_fps=30;Reset(Scenario::QueueSuccess);
+    assert(overlay::SaveSavedSettings(settings_path,2,30));
+    expected_graphics=2;expected_fps=30;Reset(Scenario::QueueSuccess);
     assert(Launch(profile,*authorization,cancelled,progress));
     std::filesystem::remove(settings_path);
     expected_graphics=kStartupGraphicsMode;expected_fps=kStartupStreamFps;

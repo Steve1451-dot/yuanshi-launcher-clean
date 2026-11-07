@@ -27,9 +27,11 @@ constexpr std::uint64_t ResyncJitterHoldUs(int target_buffer_ms)
         std::max(30, ClampTargetBufferMs(target_buffer_ms) / 2)) * 1000;
 }
 
-constexpr std::uint64_t PacketReorderGraceUs()
+constexpr std::uint64_t PacketReorderGraceUs(std::uint64_t buffered_us=0)
 {
-    return 4000;
+    // Wait for mild Wi-Fi reordering while PCM already covers the wait. Near
+    // starvation retain the short grace so a missing packet cannot block PLC.
+    return buffered_us>=20000 ? 12000 : 4000;
 }
 
 constexpr std::uint64_t EstimatePlayedSamples(std::uint64_t observed_samples,

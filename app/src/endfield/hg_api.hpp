@@ -159,9 +159,9 @@ struct DispatchInputs {
     std::string tenant_key;
     std::string game_id;                   // Opaque cloud game_id, passed unchanged.
     std::string node_id;                    // empty = server default
-    std::string resolution = "1280x720";    // 省流 default
-    int bit_rate = 4000;                    // kbps, low tier upperLimit
-    int fps = kDispatchFps;                // low bitrate + 60 FPS by default
+    std::string resolution = "1280x720";
+    int bit_rate = kDefaultBitRate;         // kbps, high tier upperLimit unless restored
+    int fps = kDispatchFps;                 // 60 FPS unless restored
     int codec_type = 18;                    // H264
     std::string cmd_line;                   // empty = selected transport's bootstrap profile
 };

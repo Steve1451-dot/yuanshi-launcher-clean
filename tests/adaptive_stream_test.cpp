@@ -44,6 +44,25 @@ int main() {
     assert(link.policy.bitrate().maximum==3000);
     for(int i=0;i<15;++i) link.window();
     assert(link.deliver().bitrate.maximum==3300);
+    // A single lost reference frame can gate many pictures: sparse AU loss
+    // with repeated waits must still lower network demand on either protocol.
+    Link waiting(0);
+    waiting.window();waiting.window();
+    waiting.sample.waiting_idr+=35;waiting.window(85,1);
+    assert(waiting.deliver().bitrate.maximum==6000);
+    for(int i=0;i<20;++i) {
+        waiting.sample.waiting_idr+=40;waiting.window(80);
+        if(waiting.policy.write_due(waiting.now)) {
+            waiting.policy.sent(waiting.now,true);
+            for(int j=0;j<2;++j) {waiting.now+=500;assert(waiting.policy.write_due(waiting.now));waiting.policy.sent(waiting.now,true);}
+        }
+    }
+    assert(waiting.policy.bitrate().maximum==3000 && waiting.policy.fps()==30);
+    // Locally waiting for an IDR without RTP loss must not claim clean
+    // delivery or invent a bandwidth reduction.
+    Link local_wait;
+    for(int i=0;i<40;++i) {local_wait.sample.waiting_idr+=20;local_wait.window();}
+    assert(!local_wait.policy.write_due(local_wait.now) && local_wait.policy.bitrate().maximum==4000);
     // High quality is a ceiling; severe damage can temporarily reduce its
     // floor down to the global 3 Mbps guardrail. It never changes graphics mode.
     Link high(0);

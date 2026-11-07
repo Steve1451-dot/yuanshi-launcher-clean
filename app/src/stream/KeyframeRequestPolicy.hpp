@@ -4,33 +4,34 @@
 #include <cstdint>
 
 namespace opennow::video {
-// One owning network thread. The 7.1.0 transport accepts a PLI no more often
-// than every 250 ms and coalesces requests while one is in flight. Retry at
-// that fixed cadence for as long as the picture is unresolved: backing off to
-// 500/1000 ms leaves the decoder gated after a single lost IDR and is slower
-// than the official receiver. A new damage generation never resets the
-// cadence; only recovery or an idle gap longer than 250 ms does.
+// One owning network thread. Request immediately, retry once after 250 ms,
+// then allow 500/1000 ms for a large IDR to arrive. Continuous loss must not
+// provoke four large intra frames per second on an already congested link.
+// Brief recoveries and changing generations keep the retry budget; two quiet
+// seconds restore the fast path. Retries remain bounded in interval, not count.
 class KeyframeRequestPolicy {
 public:
     bool due(std::int64_t now_ms,bool needed,std::uint64_t generation) {
-        if(sent_ && now_ms<last_ms_) {sent_=false;active_=false;}
-        if(!needed) {active_=false;return false;}
-        if(!active_) {
-            active_=true;generation_=generation;
-            next_ms_=sent_ ? std::max(now_ms,last_ms_+kMinIntervalMs) : now_ms;
-        } else if(generation_!=generation) {
-            // More damage during the same unresolved recovery must not turn a
-            // lossy link into an IDR request storm.
-            generation_=generation;
+        (void)generation; // More damage cannot bypass the shared retry gate.
+        if(sent_ && now_ms<last_ms_) {sent_=false;interval_ms_=250;}
+        if(!needed) {
+            if(!quiet_) {quiet_=true;quiet_since_ms_=now_ms;}
+            return false;
         }
+        const bool recovered=quiet_ && now_ms-quiet_since_ms_>=2000;
+        quiet_=false;
+        if(recovered) {interval_ms_=250;next_ms_=sent_ ? last_ms_+250 : now_ms;}
+        if(!sent_) next_ms_=now_ms;
         if(now_ms<next_ms_) return false;
-        sent_=true;last_ms_=now_ms;next_ms_=now_ms+kMinIntervalMs;
+        sent_=true;last_ms_=now_ms;next_ms_=now_ms+interval_ms_;
+        interval_ms_=std::min<std::int64_t>(1000,interval_ms_*2);
         return true;
     }
+    // A locally rejected write cannot provoke a server IDR. Preserve the fast
+    // retry when transport is still opening, without bypassing the 250ms gate.
+    void failed() {interval_ms_=250;next_ms_=last_ms_+250;}
 private:
-    static constexpr std::int64_t kMinIntervalMs=250;
-    bool sent_=false,active_=false;
-    std::uint64_t generation_=0;
-    std::int64_t last_ms_=0,next_ms_=0;
+    bool sent_=false,quiet_=false;
+    std::int64_t last_ms_=0,next_ms_=0,quiet_since_ms_=0,interval_ms_=250;
 };
 } // namespace opennow::video

@@ -47,7 +47,7 @@ void CloudGenshinStreamView::show_quality_menu(bool visible) {
     menu_tap_.cancel();floating_ball_.cancel();arm_input_release();
     {std::lock_guard lock(mutex_);input_={};}
     if(visible) {
-        // Home opens a submenu, never silently changes the saved low preset.
+        // Home opens a submenu without changing the restored preference.
         stream_menu_.reset();quality_menu_index_=0;
         brls::Application::giveFocus(this);
     }

@@ -15,7 +15,7 @@ namespace cloudgenshin::endfield {
 // from its graphics-mode preference (the two protocols are not interchangeable).
 using BitrateRange=cloudgenshin::StreamBitrateRange;
 inline constexpr auto kStreamBitrates=cloudgenshin::kStreamQualityBitrates;
-inline constexpr int kDefaultBitrateTier=2;
+inline constexpr int kDefaultBitrateTier=0;
 inline bool ValidBitrateTier(int tier) {return tier>=0 && tier<3;}
 inline bool ValidStreamFps(int fps) {return fps==30 || fps==60;}
 struct SavedStreamSettings {
@@ -34,7 +34,7 @@ inline SavedStreamSettings LoadStreamSettings(const std::string& path) {
         int tier=-1,fps=0;
         if(!(input>>tier>>fps) || !ValidBitrateTier(tier) || !ValidStreamFps(fps)) continue;
         input>>std::ws;
-        if(input.eof()) return {kDefaultBitrateTier,kDefaultStreamFps,true};
+        if(input.eof()) return {tier,fps,true};
         std::string revision;
         if(!(input>>revision) || revision!="CGNX-LOW60-V1") continue;
         input>>std::ws;

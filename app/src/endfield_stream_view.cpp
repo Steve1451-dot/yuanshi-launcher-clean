@@ -804,7 +804,7 @@ void EndfieldStreamView::network_loop(VlinkSdkData sdk,std::string auth_code,
                 if(keyframe_policy.due(std::chrono::duration_cast<std::chrono::milliseconds>(
                         now.time_since_epoch()).count(),needed,recovery_generation)) {
                     if(session.request_keyframe()) {++keyframe_requests;keyframe_after_settings=false;}
-                    else ++keyframe_failures;
+                    else {++keyframe_failures;keyframe_policy.failed();}
                 }
             }
         }
@@ -874,9 +874,10 @@ void EndfieldStreamView::network_loop(VlinkSdkData sdk,std::string auth_code,
             const auto at=std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
             if(now>=next_adaptive_sample) {
                 next_adaptive_sample=now+std::chrono::seconds(1);
+                const auto performance=media_.performance();
                 if(const auto stats=session.video_rtp_stats()) adaptive_stream.observe(at,
                     {stats->access_units_completed,stats->access_units_dropped,stats->reorder_timeout_skips,
-                     stats->reorder_capacity_skips,media_.performance().congestion_events});
+                     stats->reorder_capacity_skips,performance.congestion_events,performance.waiting_idr_drops});
             }
             if(const auto change=adaptive_stream.write_due(at)) {
                 const bool fps=change->kind==AdaptiveStream::Kind::Fps;

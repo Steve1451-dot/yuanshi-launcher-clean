@@ -4,10 +4,11 @@
 #include <cstdint>
 
 namespace cloudgenshin {
-// User-requested default: lowest cloud-quality tier and 60 FPS.
+// First launch / no valid preference: highest cloud-quality tier and 60 FPS.
+// Saved per-game settings take priority over these fallback values.
 // These are requests, not proof that the server has applied them.
 inline constexpr int kStartupStreamFps=60;
-inline constexpr int kStartupGraphicsMode=control::kGraphicsExtremeSaving;
+inline constexpr int kStartupGraphicsMode=control::kGraphicsHighQuality;
 inline constexpr std::uint32_t kStartupBitRate=MihoyoBitrate(kStreamQualityBitrates[kStartupGraphicsMode].maximum);
 
 // Network-worker clock/counters only. Decoded pictures are not game-loading

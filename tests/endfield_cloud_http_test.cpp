@@ -129,11 +129,13 @@ int main() {
 
     DispatchInputs inputs;inputs.tenant_key="synthetic-tenant";inputs.game_id="opaque-game+/=";
     assert(nlohmann::json::parse(BuildDispatchBody(inputs))["fps"]==60);
-    assert(nlohmann::json::parse(BuildDispatchBody(inputs))["bit_rate"]==4000);
+    assert(nlohmann::json::parse(BuildDispatchBody(inputs))["bit_rate"]==12000);
     inputs.fps=60;assert(nlohmann::json::parse(BuildDispatchBody(inputs))["fps"]==60);
     inputs.fps=120;assert(nlohmann::json::parse(BuildDispatchBody(inputs))["fps"]==60);
     inputs.fps=30;
+    inputs.bit_rate=4000;
     assert(nlohmann::json::parse(BuildDispatchBody(inputs))["fps"]==30); // Explicit choice still works.
+    assert(nlohmann::json::parse(BuildDispatchBody(inputs))["bit_rate"]==4000);
     const auto placeholder=ParseQueueState(R"({"status":1,"queuing_seat_no":28,"sdk_msg":{}})");
     assert(placeholder && !placeholder->sdk_msg.empty() && !placeholder->pod_assigned());
     const auto queued_string=ParseQueueState(R"({"status":1,"sdk_msg":"{}"})");

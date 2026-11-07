@@ -10,8 +10,9 @@ int main() {
     const auto path=(std::filesystem::temp_directory_path()/
         ("endfield-stream-test-"+std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()))).string();
     auto settings=LoadStreamSettings(path);
-    assert(!settings.valid && settings.tier==2 && settings.fps==60);
-    assert(kStreamBitrates[settings.tier].minimum==3000 && kStreamBitrates[settings.tier].maximum==4000);
+    assert(!settings.valid && settings.tier==0 && settings.fps==60);
+    assert(kStreamBitrates[settings.tier].minimum==6000 && kStreamBitrates[settings.tier].maximum==12000);
+    static_assert(kDefaultBitRate==12000 && kDefaultBitRateLevel=="high");
     assert(kDispatchFps==60 && kDefaultStreamFps==60);
     assert(!SaveStreamSettings(path,-1,30) && !SaveStreamSettings(path,3,30));
     assert(!SaveStreamSettings(path,2,0) && !SaveStreamSettings(path,2,120));
@@ -28,12 +29,15 @@ int main() {
     std::filesystem::remove(path+".bak");
     for(const auto* invalid:{"", "0", "3 30", "2 120", "2 30 trailing", "2 30 0"}) {
         {std::ofstream file(path,std::ios::trunc);file<<invalid;}
-        settings=LoadStreamSettings(path);assert(!settings.valid && settings.tier==2 && settings.fps==60);
+        settings=LoadStreamSettings(path);assert(!settings.valid && settings.tier==0 && settings.fps==60);
     }
     {std::ofstream file(path,std::ios::trunc);file<<"0 60"<<std::string(1000,' ');}
-    settings=LoadStreamSettings(path);assert(!settings.valid && settings.tier==2 && settings.fps==60);
+    settings=LoadStreamSettings(path);assert(!settings.valid && settings.tier==0 && settings.fps==60);
     {std::ofstream file(path,std::ios::trunc);file<<"0 30";}
-    settings=LoadStreamSettings(path);assert(settings.valid && settings.tier==2 && settings.fps==60);
+    settings=LoadStreamSettings(path);assert(settings.valid && settings.tier==0 && settings.fps==30);
+    {std::ofstream file(path,std::ios::trunc);file<<"2 30";}
+    settings=LoadStreamSettings(path);assert(settings.valid && settings.tier==2 && settings.fps==30);
+    {std::ifstream file(path);std::string value((std::istreambuf_iterator<char>(file)),{});assert(value=="2 30");}
     assert(SaveStreamSettings(path,1,30));
     settings=LoadStreamSettings(path);assert(settings.valid && settings.tier==1 && settings.fps==30);
     std::filesystem::remove(path);

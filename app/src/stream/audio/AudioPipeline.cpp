@@ -267,7 +267,13 @@ struct AudioPipeline::Impl {
             // without restarting the device's played-sample clock).
             output_starved = true;
             underruns++;
-            log("AUDOUT underrun; keeping output running");
+            // Rebuild the configured small reserve after a real underrun.
+            // Starting immediately with one packet repeatedly starves on a
+            // jittery link. Keep the output clock, decoder and queued input.
+            {std::lock_guard lock(mutex);
+             primed=false;missing_packet_since_us=0;
+             jitter_hold_until_us=monotonic_us()+resync_jitter_hold_us;}
+            log("AUDOUT underrun; re-priming while output stays running");
         }
     }
 
@@ -603,7 +609,11 @@ struct AudioPipeline::Impl {
             if (missing_packet_since_us == 0)
                 missing_packet_since_us = now_us;
             const uint64_t missing_us = now_us - missing_packet_since_us;
-            const uint64_t grace_us = opennow::audio::PacketReorderGraceUs();
+            const auto submitted=submitted_samples.load();
+            const auto played=opennow::audio::EstimatePlayedSamples(played_samples.load(),
+                played_samples_observed_at_us.load(),now_us,submitted,kSampleRate);
+            const uint64_t buffered_us=(submitted-played)*1000000/kSampleRate;
+            const uint64_t grace_us = opennow::audio::PacketReorderGraceUs(buffered_us);
             if (missing_us < grace_us) {
                 cv.wait_for(lock, std::chrono::microseconds(grace_us - missing_us));
                 continue;

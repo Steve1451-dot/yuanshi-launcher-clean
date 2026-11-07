@@ -276,6 +276,28 @@ int main(int argc, char** argv)
         return 0;
     }
     if (argc > 1) {
+        if (std::string(argv[1]) == "reprime") {
+            AudioPipeline pipeline;pipeline.configure(100,40);assert(pipeline.start());
+            const auto send=[&](uint16_t sequence) {
+                uint8_t payload[]={0xf0,static_cast<uint8_t>(sequence)};
+                PeerAudioPacket packet{};packet.data=payload;packet.size=sizeof(payload);
+                packet.ssrc=1;packet.sequence=sequence;packet.timestamp=480*sequence;packet.payload_type=111;
+                pipeline.submit(packet);
+            };
+            for(unsigned i=0;i<4;++i) send(i);
+            await([] {return starts==1;});
+            {std::lock_guard lock(mutex);release_output=true;}
+            wait_audio([&]{return pipeline.levels().samples_played==1920 && pipeline.levels().underruns==1;});
+            {std::lock_guard lock(mutex);release_output=false;}
+            send(4);std::this_thread::sleep_for(std::chrono::milliseconds(40));
+            assert(pipeline.levels().packets_decoded==4); // A single packet cannot restart jitter churn.
+            for(unsigned i=5;i<8;++i) send(i);
+            wait_audio([&]{return pipeline.levels().packets_decoded==8;});
+            {std::lock_guard lock(mutex);
+             assert(starts==1 && stops==0 && decoder_generation==1);
+             assert(decoded_sequences==std::vector<int>({0,1,2,3,4,5,6,7}));}
+            pipeline.stop();return 0;
+        }
         if (std::string(argv[1]) == "timeline")
             check_output_timeline();
         else {

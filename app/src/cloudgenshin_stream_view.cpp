@@ -66,7 +66,7 @@ CloudGenshinStreamView::CloudGenshinStreamView(cloudgenshin::dispatch::SdkStartG
     autotest_ui_enabled_=automated_seconds_>0 && cloudgenshin::AutoTestUiProbeEnabled(
         opennow::AppHomePath()+"/cloudgenshin-autotest.ui");
     // Restore the floating-ball choices from the last session; fall back to the
-    // official low startup preset when nothing valid was saved. These are still
+    // high-quality/60 FPS startup preset when nothing valid was saved. These are still
     // requests, not proof the server applied them.
     const auto saved=cloudgenshin::overlay::LoadSavedSettings(
         cloudgenshin::overlay::StreamSettingsPath(opennow::AppHomePath(),mapping_profile_));
@@ -865,6 +865,7 @@ void CloudGenshinStreamView::network_loop(cloudgenshin::dispatch::SdkStartGamePa
             if(keyframe_policy.due(std::chrono::duration_cast<std::chrono::milliseconds>(
                     now.time_since_epoch()).count(),needed,recovery_generation)) {
                 if(session.request_keyframe()) {++keyframe_requests_;keyframe_after_settings=false;}
+                else keyframe_policy.failed();
             }
         }
         if(settings_ready_) {
@@ -916,9 +917,10 @@ void CloudGenshinStreamView::network_loop(cloudgenshin::dispatch::SdkStartGamePa
             if(now>=next_adaptive_sample) {
                 next_adaptive_sample=now+std::chrono::seconds(1);
                 PeerVideoRtpStats stats{};
+                const auto performance=media_.performance();
                 if(session.video_rtp_stats(&stats)) adaptive_stream.observe(now_ms,
                     {stats.access_units_completed,stats.access_units_dropped,stats.reorder_timeout_skips,
-                     stats.reorder_capacity_skips,media_.performance().congestion_events});
+                     stats.reorder_capacity_skips,performance.congestion_events,performance.waiting_idr_drops});
             }
             if(const auto change=adaptive_stream.write_due(now_ms)) {
                 const bool fps=change->kind==AdaptiveStream::Kind::Fps;

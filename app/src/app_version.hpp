@@ -5,7 +5,7 @@
 #endif
 
 #ifndef CLOUDGENSHIN_APP_VERSION
-#define CLOUDGENSHIN_APP_VERSION "0.2.111"
+#define CLOUDGENSHIN_APP_VERSION "0.2.112"
 #endif
 
 namespace opennow

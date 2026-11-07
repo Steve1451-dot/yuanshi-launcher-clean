@@ -105,6 +105,15 @@ int main() {
     editor.update({},bounds,true,1,{diagram.panel.x+5,diagram.panel.y+5});
     assert(editor.update({},bounds,false,0,{})==A::None && editor.is_open()); // Empty schematic is inert.
     editor.open("hk4e",defaults,true);assert(editor.native_navigation());
+    assert(editor.displayed()==input::ControllerMapping{} && editor.current()==defaults);
+    assert(editor.select_source(0)==A::None && !editor.targets());
+    assert(editor.activate(10)==A::None && editor.current()==defaults); // No local reset in native mode.
+    editor.activate(8);assert(editor.gyro_page());
+    assert(editor.activate(0)==A::None && editor.current()==defaults); // No hidden local gyro mutation.
+    assert(editor.activate(5)==A::ToggleNavigation && !editor.native_navigation());
+    editor.navigation_saved(false,true);assert(editor.native_navigation()); // Failed save reverts only the UI candidate.
+    assert(editor.activate(5)==A::ToggleNavigation && !editor.native_navigation());
+    editor.navigation_saved(true,false);assert(!editor.native_navigation() && editor.current()==defaults);
     editor.close();editor.open("hk4e",defaults);assert(!editor.native_navigation());
     editor.open("endfield",input::DefaultControllerMapping("endfield"),true);assert(!editor.native_navigation());
     std::cout<<"PASS controller editor: save failure, restore confirmation, gesture capture, pages, gyro scope\n";

@@ -267,6 +267,14 @@ int main() {
         assert(ready->gamepad_enabled());
         assert(ready->send_gamepad({},1) && ready->send_gamepad({},2));
         assert(ready->send_gamepad_list(0x045e,0x028e));
+        // A locally accepted device/state is not a cloud gamepad-mode receipt.
+        assert(ready->server_control_mode()==-1);
+        Inject(signaling::MessageType::Proxy,control::EncodePacket({control::kSyncGameControlMode,{}, {8,3}}));
+        ready->poll();ready->poll();assert(ready->server_control_mode()==3);
+        Inject(signaling::MessageType::Proxy,control::EncodePacket({control::kSyncGameControlMode,{}, {8}}));
+        ready->poll();ready->poll();assert(ready->server_control_mode()==3); // Malformed reply cannot change the badge.
+        Inject(signaling::MessageType::Proxy,control::EncodePacket({control::kSyncGameControlMode,{}, {8,1}}));
+        ready->poll();ready->poll();assert(ready->server_control_mode()==1); // A later server mode clears confirmation.
         assert(std::count(events.begin(),events.end(),"GAME_SDK_KEEP_PLAYING_SENT")==0);
         input::SwitchControllerState active; active.a=true;
         assert(ready->send_gamepad(active,3));

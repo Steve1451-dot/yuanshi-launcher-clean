@@ -31,6 +31,9 @@ int main() {
     assert(ui::Text("Local gyro: off").find("已关闭")!=std::string::npos);
     assert(ui::Text("Controls: combat (tap for native menu)").find("原生菜单导航")!=std::string::npos);
     assert(ui::Text("Native menu navigation; gyro off").find("体感暂停")!=std::string::npos);
+    assert(ui::Text("Controls: native gamepad (tap for local)").find("游戏原生手柄")!=std::string::npos);
+    assert(ui::Text("Control mode saved for next session").find("下次串流")!=std::string::npos);
+    assert(ui::Text("Native gamepad | awaiting cloud").find("等待云端确认")!=std::string::npos);
     assert(ui::Text("Normal attack")=="普通攻击");
     assert(ui::ChineseLogText("1 t=0s GENSHIN_WHEEL_INPUT_TICKS code=3\n").find("非云端回执")!=std::string::npos);
     assert(ui::Text("Input: Android + PS5 (experimental)").find("点此关闭")!=std::string::npos);
@@ -132,6 +135,7 @@ int main() {
     ui::chinese=false;assert(ui::LogText(raw)==raw);assert(ui::SaveLanguage(path));
     assert(ui::ChineseLogText(raw).find("登录成功")!=std::string::npos);
     assert(ui::ChineseLogText("1 t=3s RTC_PEER_STATE code=5\n").find("RTC 连接失败 数值=5")!=std::string::npos);
+    assert(ui::ChineseLogText("1 t=3s GENSHIN_GAMEPAD_MODE_SAVED code=1\n").find("非云端键位保存")!=std::string::npos);
     assert(ui::ChineseLogText("1 t=3s QUEUED_POSITION code=2 http=200\n").find("位置=2 http=200")!=std::string::npos);
     assert(ui::ChineseLogText("1 t=3s GAME_SDK_LOGIN_REFRESHED code=1 http=200\n").find("不等于进入游戏")!=std::string::npos);
     assert(ui::ChineseLogText("1 t=3s GAME_SDK_REPORT_FIRST_NONZERO_RETCODE code=1001\n").find("不等于串流断线")!=std::string::npos);

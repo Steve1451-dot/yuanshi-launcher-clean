@@ -87,6 +87,7 @@ try {
         controller_mapping_draw=@('-isystem','extern/borealis/library/include/borealis/extern/nanovg')
         controller_mapping_diagram=@()
         genshin_input_experiment=@('app/src/mihoyo/input_packet.cpp','app/src/mihoyo/game_control.cpp')
+        genshin_gamepad_mode=@('app/src/mihoyo/input_packet.cpp')
         gyro_stick_assist=@()
         mihoyo_launcher_status=@()
         mihoyo_stream_overlay_policy=@()

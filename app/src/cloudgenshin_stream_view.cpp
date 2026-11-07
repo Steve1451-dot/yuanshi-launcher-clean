@@ -16,6 +16,7 @@
 #include "mihoyo/stream_startup_policy.hpp"
 #include "mihoyo/setting_delivery_policy.hpp"
 #include "mihoyo/adaptive_stream_policy.hpp"
+#include "mihoyo/genshin_gamepad_mode.hpp"
 #include "mihoyo/launcher_input_policy.hpp"
 #include "stream/ffmpeg/AVFrameHolder.hpp"
 #include "app_version.hpp"
@@ -52,14 +53,19 @@ CloudGenshinStreamView::CloudGenshinStreamView(cloudgenshin::dispatch::SdkStartG
       sdk_version_(std::move(sdk_version)) {
     mapping_profile_=cloudgenshin::input::MappingProfileForApp(authorization.combo.app_id);
     mapping_game_name_=authorization.combo.app_id=="4"?"Genshin Cloud":authorization.combo.app_id=="8"?"Star Rail Cloud":"Cloud gaming";
+    if(mapping_profile_=="hk4e") {
+        const auto mode=cloudgenshin::input::LoadGenshinGamepadMode(opennow::AppHomePath());
+        native_navigation_=cloudgenshin::input::NativeGamepadForProfile(mapping_profile_,mode.mode);
+        progress_(native_navigation_?"GENSHIN_NATIVE_GAMEPAD_ACTIVE":"GENSHIN_LOCAL_MAPPING_ACTIVE",mode.restored?1:0,0);
+    }
     const auto mapping=cloudgenshin::input::LoadControllerMapping(opennow::AppHomePath(),mapping_profile_);
     controller_mapping_=mapping.value;
-    if(mapping.upgraded) {
+    if(mapping.upgraded && !native_navigation_) {
         opennow::PrepareAppStorage();
         progress_(cloudgenshin::input::SaveControllerMapping(opennow::AppHomePath(),mapping_profile_,mapping.value)
             ? "CONTROLLER_MAPPING_MIGRATED" : "CONTROLLER_MAPPING_MIGRATION_SAVE_FAILED",4,0);
     }
-    motion_ui_status_=mapping_profile_=="hk4e"?(controller_mapping_.gyro_assist?2:5):0;
+    motion_ui_status_=mapping_profile_=="hk4e"?(native_navigation_?6:controller_mapping_.gyro_assist?2:5):0;
     progress_(mapping.restored?"CONTROLLER_MAPPING_RESTORED":"CONTROLLER_MAPPING_DEFAULT",0,0);
     autotest_pad_enabled_=automated_seconds_>0 && cloudgenshin::AutoTestPadEnabled(
         opennow::AppHomePath()+"/cloudgenshin-autotest.pad");
@@ -477,7 +483,6 @@ void CloudGenshinStreamView::network_loop(cloudgenshin::dispatch::SdkStartGamePa
     const unsigned terminal_type=cloudgenshin::LoadTerminalTypeOverride(
         opennow::AppHomePath()+"/cloudgenshin-terminal.txt",cloudgenshin::kWebKeyboardTerminal);
     progress_("XBOX_INPUT_MODE_ACTIVE",0,0);
-    if(mapping_profile_=="hk4e") progress_("GENSHIN_LOCAL_GYRO_ZL_DEFAULT_READY",0,0);
     progress_("STREAM_TERMINAL_TYPE",static_cast<int>(terminal_type),0);
     if(mapping_profile_=="hk4e") progress_(terminal_type==3?
         "MOTION_NATIVE_ANDROID_ROUTE_SELECTED":"MOTION_NATIVE_ANDROID_ROUTE_NOT_SELECTED",0,0);
@@ -688,6 +693,7 @@ void CloudGenshinStreamView::network_loop(cloudgenshin::dispatch::SdkStartGamePa
         peer_poll_gaps_.observe(std::chrono::duration_cast<std::chrono::microseconds>(poll_at-last_peer_poll).count());
         last_peer_poll=poll_at;
         session.poll();
+        server_gamepad_mode_=session.server_control_mode();
         // Official setGraphicsMode/setFps applies in Connected, not immediately
         // after game auth while transport/initial server config is still pending.
         const bool settings_ready=media_.decoded()>0 && session.input_ready();
@@ -820,12 +826,12 @@ void CloudGenshinStreamView::network_loop(cloudgenshin::dispatch::SdkStartGamePa
             progress_("GYRO_LOCAL_SEND_FAILURES",static_cast<int>(std::min<std::uint64_t>(gyro_send_failures,INT_MAX)),0);
             progress_("GYRO_LOCAL_STICK_X",gyro_last_x,0);
             progress_("GYRO_LOCAL_STICK_Y",gyro_last_y,0);
-            progress_("GYRO_LOCAL_ENABLED",mapping_profile_=="hk4e" && motion_mapping.gyro_assist?1:0,0);
+            progress_("GYRO_LOCAL_ENABLED",mapping_profile_=="hk4e" && !native_navigation && motion_mapping.gyro_assist?1:0,0);
             progress_("GYRO_LOCAL_AIM_ONLY",motion_mapping.gyro_aim_only?1:0,0);
             progress_("GYRO_LOCAL_SENSITIVITY",static_cast<int>(motion_mapping.gyro_sensitivity),0);
             if(mapping_profile_=="hk4e") {
-                progress_("GENSHIN_POSITION_PRESET_ACTIVE",input::HasGenshinPositionPreset(motion_mapping)?1:0,0);
-                progress_("GENSHIN_NATIVE_NAVIGATION",native_navigation?1:0,0);
+                progress_("GENSHIN_POSITION_PRESET_ACTIVE",!native_navigation && input::HasGenshinPositionPreset(motion_mapping)?1:0,0);
+                progress_("GENSHIN_NATIVE_GAMEPAD_ROUTING",native_navigation?1:0,0);
                 progress_("GENSHIN_WHEEL_INPUT_TICKS",static_cast<int>(std::min<std::uint64_t>(wheel_input_ticks,INT_MAX)),0);
             }
             snapshot_counters();ReportGenshinVideoRtp(session,progress_);
@@ -1058,8 +1064,9 @@ void CloudGenshinStreamView::network_loop(cloudgenshin::dispatch::SdkStartGamePa
                 }
                 send_keyboard_mouse(session,state);
             }
-            motion_ui_status_=!mapping.gyro_assist ? (mapping_profile_=="hk4e"?5:(session.motion_requested()?1:0)) :
-                !mapped.gyro_allowed ? 6 :
+            motion_ui_status_=mapped.native_navigation ? 6 :
+                !mapping.gyro_assist ? (mapping_profile_=="hk4e"?5:(session.motion_requested()?1:0)) :
+                !mapped.gyro_allowed ? 7 :
                 !gamepad_transport || !motion.valid || now_ms<motion.sampled_ms || now_ms-motion.sampled_ms>100 ? 4 :
                 gyro_assist.active()?3:2;
             if(mapping_profile_!="hk4e" && !mapping.gyro_assist && (!gamepad_transport || !controller_handoff.pending(generation)))

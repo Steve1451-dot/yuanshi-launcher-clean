@@ -66,14 +66,14 @@ struct GameplayMappingFrame {
     SwitchControllerState state;
     bool gyro_allowed=true,wheel_navigation=false,native_navigation=false;
 };
-// Explicit navigation only: never guess whether the pod is displaying a menu.
+// Explicit native passthrough: never guess whether the pod is displaying a menu.
 // L is a physical modifier. Restore the shoulder/right-face pair while held:
 // keep LB+B on L+right-A, without discarding unrelated custom D-pad/buttons.
 inline GameplayMappingFrame ComposeGameplayMapping(std::string_view profile,
         const ControllerMapping& map,const SwitchControllerState& raw,bool native_navigation=false) {
     const bool genshin=profile=="hk4e";
     const bool navigation=genshin && native_navigation;
-    const bool wheel=genshin && map.target[0]==5 && map.target[5]==0 && map.target[4]==4 && raw.l;
+    const bool wheel=genshin && !navigation && map.target[0]==5 && map.target[5]==0 && map.target[4]==4 && raw.l;
     auto effective=map;
     if(wheel) {effective.target[0]=0;effective.target[5]=5;}
     return {navigation ? raw : ApplyControllerMapping(effective,raw),

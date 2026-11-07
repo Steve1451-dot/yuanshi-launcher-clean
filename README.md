@@ -2,7 +2,7 @@
 
 **用 Joy-Con 在 Switch 上直接玩云游戏，一个 NRO 集中管理多个游戏入口。**
 
-**下载 0.2.111 alpha：** [完整安装包（推荐）](https://github.com/Steve1451-dot/yuanshi-launcher-ns/releases/download/v0.2.111/yuanshi-launcher-0.2.111.zip)
+**已发布 0.2.111 alpha：** [完整安装包（推荐）](https://github.com/Steve1451-dot/yuanshi-launcher-ns/releases/download/v0.2.111/yuanshi-launcher-0.2.111.zip)
 · [仅 NRO](https://github.com/Steve1451-dot/yuanshi-launcher-ns/releases/download/v0.2.111/yuanshi-launcher-0.2.111.nro)
 · [发布说明与校验文件](https://github.com/Steve1451-dot/yuanshi-launcher-ns/releases/tag/v0.2.111)
 
@@ -27,7 +27,8 @@
 · [按键操作](#按键操作) · [功能与验证状态](#功能与验证状态)
 · [当前限制](#当前限制) · [源码构建](#源码构建) · [许可与致谢](#许可)
 
-> 当前版本为 **0.2.111 alpha**。**ys / zmd 已通过 Switch 实机测试，bt 仍在适配中。**
+> 当前源码为 **0.2.112 alpha**，加入原神原生手柄直通，尚待 Switch 实机验证游戏内键位保存。
+> 上方下载链接仍为已发布的 0.2.111；bt 仍在适配中。
 > 三款游戏共用启动器、登录管理、串流设置与本地手柄配置，软件内简称统一为 **ys / zmd / bt**。
 
 ## 效果展示
@@ -156,10 +157,12 @@ GitHub 仓库名中的 `ns` 用于标明 Switch 平台；本次仓库改名不�
 | 串流 | − | 传给游戏的 Back / 地图键，不再被诊断占用 |
 | 串流 | 按住 L3＋R3 | 打开 / 关闭诊断 |
 | 串流 | 同时按住 ＋和− | 停止串流并返回 |
-| ys | 按住实体 ZL 并转动 Joy-Con | 已开启本地辅助时将体感映射到右摇杆 |
-| 设置 | 可视化手柄映射 | 本地改键，按游戏独立保存；不修改云端游戏内键位 |
+| ys | 游戏原生手柄（默认） | 标准手柄直通，键位在游戏内设置；停用本地战斗重排和体感转摇杆 |
+| ys 设置 | 手柄设置 → 体感与操作模式 | 可切回本地映射；操作模式保存在 SD，下次进入继续使用 |
+| 本地映射模式 | 可视化手柄映射 / 实体 ZL 体感辅助 | 按游戏保存本地配置；不修改云端游戏内键位 |
 
-实际映射以悬浮球中的可视化配置为准。打开本地菜单时会抑制并释放游戏输入，
+原生模式的动作绑定以游戏内设置为准，跨云端实例保留仍待验证。
+本地映射模式以悬浮球中的可视化配置为准。打开本地菜单时会抑制并释放游戏输入，
 以免菜单操作同时误触游戏。
 
 ## 背景与诊断
@@ -213,7 +216,7 @@ build/switch/yuanshi-launcher.nro
 已配置交叉编译环境的 Linux / CI 可使用对应入口：
 
 ```bash
-bash scripts/package-release.sh 0.2.111
+bash scripts/package-release.sh 0.2.112
 ```
 
 打包脚本不应覆盖已有同名版本；新版本和原有历史包分开保留。编译完成不等于远程服务互通，
@@ -243,7 +246,8 @@ bash scripts/package-release.sh 0.2.111
 
 策略测试使用合成数据，不包含用户凭据；不能测出实机帧耗时或证明真实账号能进入游戏。
 历史排障记录位于 `docs/`，其中旧版本的按键、实验路线或已删除游戏不代表当前默认行为。
-本版说明见 [0.2.111 变更与验证记录](docs/yuanshi-launcher-0.2.111.md)。
+源码候选版见 [0.2.112 变更与验证记录](docs/yuanshi-launcher-0.2.112.md)。
+已发布版见 [0.2.111 变更与验证记录](docs/yuanshi-launcher-0.2.111.md)。
 
 ## 许可
 

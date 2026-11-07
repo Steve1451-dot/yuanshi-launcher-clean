@@ -640,7 +640,7 @@ void Session::handle_frame(const signaling::Frame& frame) {
     if (packet->command == control::kSyncGameControlMode) {
         const auto mode = control::DecodeSyncGameControlMode(packet->body);
         if (!mode) {
-            sdk_context_.trace("in rtc sync game control mode malformed");
+            if (sdk_context_.trace) sdk_context_.trace("in rtc sync game control mode malformed");
             return;
         }
         if (*mode != server_control_mode_) {
@@ -648,7 +648,7 @@ void Session::handle_frame(const signaling::Frame& frame) {
             if (callbacks_.candidate_event)
                 callbacks_.candidate_event("SERVER_GAME_CONTROL_MODE", *mode);
         }
-        sdk_context_.trace("in rtc control mode=" + std::to_string(*mode));
+        if (sdk_context_.trace) sdk_context_.trace("in rtc control mode=" + std::to_string(*mode));
         return;
     }
     if (packet->command != control::kStartGameRsp) {

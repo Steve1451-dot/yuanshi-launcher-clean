@@ -26,6 +26,10 @@ public:
     bool gyro_supported() const {return profile_=="hk4e";}
     bool native_navigation() const {return native_navigation_;}
     const auto& current() const {return current_;}
+    const ControllerMapping& displayed() const {
+        static const ControllerMapping native{};
+        return native_navigation_ ? native : current_;
+    }
     const auto& candidate() const {return candidate_;}
     const auto& pressed() const {return pressed_;} // UI highlight only, never remote input.
     std::optional<unsigned> highlighted_source() const {
@@ -38,8 +42,13 @@ public:
         if(success) {current_=candidate_;feedback_="Mapping saved for this game";}
         else feedback_="SD save failed; previous mapping kept";
     }
+    void navigation_saved(bool success,bool applied) {
+        native_navigation_=applied;
+        feedback_=success ? "Control mode saved for next session" : "SD save failed; previous control mode kept";
+    }
     Action select_source(unsigned source) {
         if(source>=kMappedButtons.size()) return Action::None;
+        if(native_navigation_) {feedback_="Native gamepad: change bindings in the game";return Action::None;}
         candidate_=current_;confirm_reset_=false;
         if(source==kFixedMinusButton) {
             targets_=false;source_=source;page_=source/8;focus_=source%8;
@@ -67,6 +76,7 @@ public:
         } else if(row==8 || row==9) {
             page_=(page_+(row==8?2:1))%3;focus_=0;
         } else if(row==10) {
+            if(native_navigation_) {feedback_="Native gamepad: change bindings in the game";return Action::None;}
             if(!confirm_reset_) {confirm_reset_=true;feedback_="Select restore again to confirm";return Action::None;}
             confirm_reset_=false;candidate_=DefaultControllerMapping(profile_);return Action::Save;
         }
@@ -74,9 +84,10 @@ public:
         else if(gyro_page()) {
             if(profile_=="hk4e" && row==5) {
                 native_navigation_=!native_navigation_;
-                feedback_=native_navigation_?"Native navigation enabled; gyro paused":"Combat controls enabled";
+                feedback_=native_navigation_?"Native gamepad: change bindings in the game":"Local mapping selected";
                 return Action::ToggleNavigation;
             }
+            if(native_navigation_) {feedback_="Native gamepad: change bindings in the game";return Action::None;}
             if(profile_!="hk4e" || row>4) return Action::None;
             if(row==0) candidate_.gyro_assist=!current_.gyro_assist;
             if(row==1) candidate_.gyro_sensitivity=current_.gyro_sensitivity==200?50:current_.gyro_sensitivity+50;
@@ -127,7 +138,7 @@ private:
     ControllerMapping current_,candidate_;
     SwitchControllerState pressed_;
     bool open_=false,targets_=false,armed_=false,up_=false,down_=false,a_=false,b_=false,confirm_reset_=false;
-    bool native_navigation_=false; // Session UI choice; never persisted as a new default.
+    bool native_navigation_=false; // View persists only after an atomic save succeeds.
     int page_=0,focus_=0;
     unsigned source_=0;
     overlay::MenuTap tap_;

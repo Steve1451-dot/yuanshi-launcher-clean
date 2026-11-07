@@ -68,7 +68,7 @@ int main(int argc,char** argv) {
         input::ControllerMappingEditor editor;editor.open(profile,input::DefaultControllerMapping(profile));
         const auto draw=[&] {
             labels.clear();overlay::DrawControllerMapping(nullptr,{0,0,1280,720},editor,"Test Game","Xbox",0);
-            assert(saves==0 && Has(ui::Text("Controller mapping")));
+            assert(saves==0 && Has(ui::Text(editor.native_navigation()?"Native gamepad":"Controller mapping")));
             assert(Has(ui::Text("Back to stream settings")) || Has(ui::Text("Back to mapping")));
         };
         draw();assert(Has("A   >   "));
@@ -78,10 +78,12 @@ int main(int argc,char** argv) {
         editor.activate(9);draw();
         if(std::string_view(profile)=="hk4e") {
             assert(Has(ui::Text("Gyro -> right stick (experimental)")));
-            assert(Has(ui::Text("Controls: combat (tap for native menu)")));
+            assert(Has(ui::Text("Controls: local mapping (tap for native)")));
             editor.activate(5);draw();
-            assert(Has(ui::Text("Controls: native menu (tap for combat)")));
-            assert(Has(ui::Text("Native navigation bypasses saved combat mapping")));
+            assert(Has(ui::Text("Controls: native gamepad (tap for local)")));
+            assert(Has(ui::Text("Native gamepad: change bindings in the game")));
+            assert(!Has(ui::Text("Preset: R attack / A dash / B jump")));
+            assert(!Has(ui::Text("Gyro -> right stick (experimental)")));
         }
         else assert(!Has(ui::Text("Gyro -> right stick (experimental)")));
     }
@@ -95,7 +97,13 @@ int main(int argc,char** argv) {
         assert(Has(ui::Text("Gyro -> right stick (experimental)")));
         assert(!Has(ui::Text("PS5 identity test; local gyro-to-stick paused")));
         labels.clear();overlay::DrawControllerMapping(nullptr,{0,0,1280,720},editor,"Genshin","Xbox",6);
-        assert(Has(ui::Text("Local gyro: paused for navigation")));
+        assert(Has(ui::Text("Native gamepad: local gyro off")));
+        labels.clear();overlay::DrawControllerMapping(nullptr,{0,0,1280,720},editor,"Genshin","Xbox",7);
+        assert(Has(ui::Text("Local gyro: paused while L held")) && !Has(ui::Text("Native gamepad: local gyro off")));
+        editor.open("hk4e",input::DefaultControllerMapping("hk4e"),true);labels.clear();
+        overlay::DrawControllerMapping(nullptr,{0,0,1280,720},editor,"Genshin","Xbox",5);
+        assert(Has(ui::Text("Native gamepad: local gyro off")) && !Has(ui::Text("Normal attack")));
+        editor.open("hk4e",input::DefaultControllerMapping("hk4e"));
         editor.activate(9);editor.select_source(5);labels.clear();
         overlay::DrawControllerMapping(nullptr,{0,0,1280,720},editor,"Genshin","Xbox",0);
         assert(Has(ui::Text("Normal attack")));
@@ -104,15 +112,15 @@ int main(int argc,char** argv) {
     assert(ui::ChineseLogText("1 t=1s GYRO_STICK_ASSIST_FRAMES_SENT code=1\n").find("非云端回执")!=std::string::npos);
     if(argc==2) {
         const std::filesystem::path directory(argv[1]);std::filesystem::create_directories(directory);
-        for(bool chinese:{true,false}) for(bool target:{false,true}) {
+        for(bool chinese:{true,false}) for(bool native:{false,true}) for(bool target:{false,true}) {
             ui::chinese=chinese;
-            input::ControllerMappingEditor editor;editor.open("hk4e",input::DefaultControllerMapping("hk4e"));
+            input::ControllerMappingEditor editor;editor.open("hk4e",input::DefaultControllerMapping("hk4e"),native);
             editor.update({},{0,0,1280,720},false,0,{});
-            if(target) editor.select_source(7);
+            if(target) {if(native) editor.activate(8);else editor.select_source(7);}
             input::SwitchControllerState raw;raw.zl=true;editor.update(raw,{0,0,1280,720},false,0,{});
             commands.clear();labels.clear();
             overlay::DrawControllerMapping(nullptr,{0,0,1280,720},editor,ui::Text("Genshin Cloud"),"Xbox",0);
-            const auto file=directory/(std::string(chinese?"zh":"en")+(target?"-target":"-front")+".json");
+            const auto file=directory/(std::string(chinese?"zh":"en")+(native?"-native":"")+(target?"-target":"-front")+".json");
             std::ofstream out(file);out<<Json{{"width",1280},{"height",720},{"commands",commands}}.dump();
             out.flush();assert(out.good());
         }

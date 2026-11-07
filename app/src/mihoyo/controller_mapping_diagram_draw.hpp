@@ -22,8 +22,9 @@ inline void DrawControllerDiagram(NVGcontext* vg,Rect bounds,const input::Contro
     nvgSave(vg);nvgIntersectScissor(vg,p.x,p.y,p.w,p.h);
     round(p,nvgRGBA(16,25,39,250),nvgRGBA(126,169,196,40),16);
     nvgFontSize(vg,22);nvgFillColor(vg,cyan);nvgTextAlign(vg,NVG_ALIGN_LEFT|NVG_ALIGN_MIDDLE);
-    nvgText(vg,p.x+24,p.y+30,ui::Text("Visual button mapping").c_str(),nullptr);
-    text(320,20,ui::Text("Front view - tap a physical button"),17,muted);
+    nvgText(vg,p.x+24,p.y+30,ui::Text(editor.native_navigation()?"Native gamepad":"Visual button mapping").c_str(),nullptr);
+    text(320,20,ui::Text(editor.native_navigation()?"Bindings are configured in the game":
+        "Front view - tap a physical button"),17,muted);
     // Joy-Con sides and screen. No brand logo, no imaginary rear paddles.
     round(diagram.rect(44,90,558,260),nvgRGB(40,53,69),nvgRGB(72,94,116),30);
     round(diagram.rect(44,90,110,260),nvgRGB(29,71,81),nvgRGB(55,117,127),30);
@@ -38,12 +39,13 @@ inline void DrawControllerDiagram(NVGcontext* vg,Rect bounds,const input::Contro
         text(320,160,ui::Text("Selected mapping"),17,muted);
         text(320,205,ui::Text(input::PhysicalButtonName(source))+"  >  "+
             ui::Text(source==input::kFixedMinusButton?"Game Back / map (fixed)":
-                input::RemoteButtonName(editor.current().target[source],remote_layout)),source>=10?18:25,cyan);
-        if(editor.gyro_supported() && source!=input::kFixedMinusButton && editor.current().target[source]<8)
+                input::RemoteButtonName(editor.displayed().target[source],remote_layout)),source>=10?18:25,cyan);
+        if(!editor.native_navigation() && editor.gyro_supported() && source!=input::kFixedMinusButton && editor.current().target[source]<8)
             text(320,235,ui::Text(input::GenshinDefaultActionName(editor.current().target[source])),17,ink);
-        text(320,258,ui::Text(editor.targets()?"Choose the game button on the right":"Tap to change; saved per game"),15,muted);
+        text(320,258,ui::Text(editor.native_navigation()?"Bindings are configured in the game":
+            editor.targets()?"Choose the game button on the right":"Tap to change; saved per game"),15,muted);
     } else {
-        text(320,186,ui::Text("Tap a button to remap"),23,cyan);
+        text(320,186,ui::Text(editor.native_navigation()?"Native gamepad":"Tap a button to remap"),23,cyan);
         text(320,234,ui::Text("Local menus stay unchanged"),16,muted);
     }
     text(320,302,ui::Text("L3 / R3: press the sticks"),14,muted);

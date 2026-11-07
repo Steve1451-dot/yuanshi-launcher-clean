@@ -88,7 +88,8 @@ private:
     void request_continue();
     std::string mapping_profile_,mapping_game_name_;
     cloudgenshin::input::ControllerMapping controller_mapping_; // Published under mutex_.
-    bool native_navigation_=false; // UI writes / worker snapshots under mutex_; session only.
+    bool native_navigation_=false; // Persistent native gamepad routing; UI writes / worker snapshots under mutex_.
+    std::atomic_int server_gamepad_mode_{-1}; // 3 only after a real SyncGameControlMode receipt.
     cloudgenshin::input::ControllerMappingEditor mapping_editor_; // UI only.
     std::atomic_int motion_ui_status_{0};
     cloudgenshin::Progress progress_;

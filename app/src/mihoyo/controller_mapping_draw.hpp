@@ -22,21 +22,23 @@ inline void DrawControllerMapping(NVGcontext* vg,Rect bounds,const input::Contro
     fill(bounds,nvgRGBA(0,0,0,100));
     DrawControllerDiagram(vg,bounds,editor,layout);
     fill(p,nvgRGBA(16,25,39,250));
-    text(p.x+24,p.y+33,ui::Text("Controller mapping"),25,cyan);
+    text(p.x+24,p.y+33,ui::Text(editor.native_navigation()?"Native gamepad":"Controller mapping"),25,cyan);
     fill(box.close,nvgRGBA(255,255,255,16));text(box.close.x+17,box.close.y+24,"X",22,white);
-    text(p.x+24,p.y+72,game_name+"  |  "+ui::Text("Saved separately per game"),17,white);
+    text(p.x+24,p.y+72,game_name+"  |  "+ui::Text(editor.native_navigation()?
+        "Bindings are configured in the game":"Saved separately per game"),17,white);
     std::string caption;
     if(editor.targets()) caption=ui::Text("Physical button")+" "+ui::Text(input::PhysicalButtonName(editor.source()))+"  >  "+ui::Text("Game button");
     else caption=ui::Text(editor.gyro_page()?(editor.gyro_supported()?"Gyro and control mode":"Gyro assistance"):
         "Physical button -> Game button");
     caption+="  ("+std::to_string(editor.page()+1)+"/"+(editor.targets()?"2":"3")+")";
     text(p.x+24,p.y+101,caption,19,cyan);
-    text(p.x+24,p.y+128,ui::Text(editor.native_navigation()?"Native navigation bypasses saved combat mapping":
+    text(p.x+24,p.y+128,ui::Text(editor.native_navigation()?"Native gamepad: change bindings in the game":
         "Local menus and exit shortcuts do not change"),15,muted);
     constexpr const char* states[]{"Native IMU: no activation recognized","Native IMU: server activated",
         "Local gyro: hold physical ZL","Local gyro: right stick composed",
-        "Local gyro: sensor or input not ready","Local gyro: off","Local gyro: paused for navigation"};
-    text(p.x+24,p.y+151,ui::Text(editor.gyro_supported()?states[std::clamp(motion_status,0,6)]:
+        "Local gyro: sensor or input not ready","Local gyro: off","Native gamepad: local gyro off",
+        "Local gyro: paused while L held"};
+    text(p.x+24,p.y+151,ui::Text(editor.gyro_supported()?states[editor.native_navigation()?6:std::clamp(motion_status,0,7)]:
         "Gyro assistance is currently Genshin only"),15,muted);
     nvgSave(vg);nvgIntersectScissor(vg,p.x+24,p.y+161,p.w-48,24);
     text(p.x+24,p.y+174,ui::Text(editor.feedback().empty()?"Changes apply only after SD save succeeds":editor.feedback()),15,cyan);
@@ -52,30 +54,39 @@ inline void DrawControllerMapping(NVGcontext* vg,Rect bounds,const input::Contro
                 const unsigned choice=editor.page()*9+row;
                 if(choice<=16) label=ui::Text(input::RemoteButtonName(choice?choice-1:input::kDisabledButton,layout));
             } else label=ui::Text(row==9?"Previous page":row==10?"Next page":"Back to mapping");
-        } else if(row>=8) label=ui::Text(row==8?"Previous page":row==9?"Next page":row==10?"Restore game defaults":"Back to stream settings");
+        } else if(row>=8) {
+            label=ui::Text(row==8?"Previous page":row==9?"Next page":row==10?"Restore game defaults":"Back to stream settings");
+            if(row==10 && editor.native_navigation()) enabled=false;
+        }
         else if(!editor.gyro_page()) {
             const unsigned source=editor.page()*8+row;
-            enabled=source!=input::kFixedMinusButton;
-            label=ui::Text(input::PhysicalButtonName(source))+"   >   "+ui::Text(enabled?
-                input::RemoteButtonName(editor.current().target[source],layout):"Game Back / map (fixed)");
+            enabled=source!=input::kFixedMinusButton && !editor.native_navigation();
+            label=ui::Text(input::PhysicalButtonName(source))+"   >   "+ui::Text(source!=input::kFixedMinusButton?
+                input::RemoteButtonName(editor.displayed().target[source],layout):"Game Back / map (fixed)");
             if(enabled && editor.gyro_supported() && editor.current().target[source]<8)
                 label+="  ("+ui::Text(input::GenshinDefaultActionName(editor.current().target[source]))+")";
         } else if(!editor.gyro_supported()) {
             if(row==0) label=ui::Text("Gyro assistance is currently Genshin only");
             enabled=false;
         } else if(row<5) {
+            if(editor.native_navigation()) {
+                enabled=false;if(row==0) label=ui::Text("Native gamepad: local gyro off");
+            } else {
             const auto& config=editor.current();
             if(row==0) label=ui::Text("Gyro -> right stick (experimental)")+": "+ui::Text(config.gyro_assist?"On":"Off");
             if(row==1) label=ui::Text("Gyro sensitivity")+": "+std::to_string(config.gyro_sensitivity)+"%";
             if(row==2) label=ui::Text(config.gyro_aim_only?"Activation: hold physical ZL":"Activation: always");
             if(row==3) label=ui::Text("Invert gyro Y")+": "+ui::Text(config.gyro_invert_y?"On":"Off");
             if(row==4) label=ui::Text("Invert gyro X")+": "+ui::Text(config.gyro_invert_x?"On":"Off");
+            }
         } else if(row==5) {
-            label=ui::Text(editor.native_navigation()?"Controls: native menu (tap for combat)":
-                "Controls: combat (tap for native menu)");
+            label=ui::Text(editor.native_navigation()?"Controls: native gamepad (tap for local)":
+                "Controls: local mapping (tap for native)");
+        } else if(row==6 && editor.native_navigation()) {
+            label=ui::Text("Bindings are configured in the game");enabled=false;
         } else if(row==6 && input::HasGenshinPositionPreset(editor.current())) {
             label=ui::Text("Preset: R attack / A dash / B jump");enabled=false;
-        } else if(row==7 && input::HasGenshinPositionPreset(editor.current())) {
+        } else if(row==7 && !editor.native_navigation() && input::HasGenshinPositionPreset(editor.current())) {
             label=ui::Text("Hold L: original wheel; gyro paused");enabled=false;
         }
         // Leave a bearing gutter for system/font-fallback glyphs at the left edge.

@@ -44,7 +44,7 @@ public:
     const char* label(int row) const {
         constexpr const char* commands[]{"High quality","Traffic saving","Extreme saving",
             "Frame rate: 30","Frame rate: 60","Performance HUD","中文 / English","Stream diagnostics",
-            "Controller mapping","Continue to game","Stop + return","Decoder (next session)"};
+            "Controller settings","Continue to game","Stop + return","Decoder (next session)"};
         const int id=command(row);
         return id>=0 ? commands[id] : id==-1 ? "Quality" : id==-2 ? "Frame rate" :
             id==-3 ? "More settings" : id==-4 ? "Back" : "";

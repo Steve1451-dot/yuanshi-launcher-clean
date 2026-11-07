@@ -3,6 +3,7 @@
 #include "mihoyo/stream_health_draw.hpp"
 #include "mihoyo/controller_mapping_draw.hpp"
 #include "mihoyo/compact_stream_menu_draw.hpp"
+#include "mihoyo/genshin_gamepad_mode.hpp"
 #include <cstdio>
 
 namespace ui=cloudgenshin::ui;
@@ -117,11 +118,18 @@ void CloudGenshinStreamView::update_overlay_input(const cloudgenshin::input::Swi
             mapping_editor_.saved(saved);arm_input_release();
             progress_(saved?"CONTROLLER_MAPPING_SAVED":"CONTROLLER_MAPPING_SAVE_FAILED",0,0);
         } else if(action==cloudgenshin::input::ControllerMappingEditor::Action::ToggleNavigation) {
-            // Opening the editor already captures raw input. Publish a fresh
-            // neutral generation before switching the remote mapping context.
-            arm_input_release();
-            {std::lock_guard lock(mutex_);native_navigation_=mapping_editor_.native_navigation();}
-            progress_("GENSHIN_NATIVE_NAVIGATION",native_navigation_?1:0,0);
+            const bool requested=mapping_editor_.native_navigation();
+            opennow::PrepareAppStorage();
+            const bool saved=cloudgenshin::input::SaveGenshinGamepadMode(opennow::AppHomePath(),requested?
+                cloudgenshin::input::GenshinGamepadMode::Native:cloudgenshin::input::GenshinGamepadMode::LocalMapping);
+            if(saved) {
+                // Neutral must reach the pod before the newly routed source
+                // can press. No filesystem work is done under the input lock.
+                arm_input_release();
+                {std::lock_guard lock(mutex_);native_navigation_=requested;}
+            }
+            mapping_editor_.navigation_saved(saved,native_navigation_);
+            progress_(saved?"GENSHIN_GAMEPAD_MODE_SAVED":"GENSHIN_GAMEPAD_MODE_SAVE_FAILED",native_navigation_?1:0,0);
         } else if(action==cloudgenshin::input::ControllerMappingEditor::Action::Close) arm_input_release();
         quality_menu_up_=state.dpad_up;quality_menu_down_=state.dpad_down;
         quality_menu_a_=state.a;quality_menu_b_=state.b;
@@ -192,7 +200,8 @@ void CloudGenshinStreamView::draw_overlay(NVGcontext* vg,overlay::Rect bounds) {
         if(mapping_profile_=="hk4e" && native_navigation_) {
             const overlay::Rect badge{bounds.x+20,bounds.y+bounds.h-58,std::min(350.0f,bounds.w-40),36};
             box(vg,badge,nvgRGBA(16,25,39,230),8);
-            text(vg,badge.x+12,badge.y+18,ui::Text("Native menu navigation; gyro off"),16,cyan);
+            text(vg,badge.x+12,badge.y+18,ui::Text(server_gamepad_mode_==3?
+                "Native gamepad | cloud confirmed":"Native gamepad | awaiting cloud"),16,cyan);
         }
         const auto c=floating_ball_.centre(bounds);
         nvgBeginPath(vg);nvgCircle(vg,c.x,c.y,29);nvgFillColor(vg,nvgRGBA(12,28,44,215));nvgFill(vg);

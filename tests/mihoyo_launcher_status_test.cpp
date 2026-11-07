@@ -9,22 +9,6 @@ int main() {
     }
     assert(!LeavesLongQueue(-1) && !LeavesLongQueue(0) && !LeavesLongQueue(100));
     assert(LeavesLongQueue(101) && LeavesLongQueue(243) && LeavesLongQueue(327));
-    QueueExitNotice notice;
-    notice.observe("QUEUED_POSITION",243);assert(!notice.take(false));
-    notice.observe("QUEUE_ABANDONED_TOO_LONG",243);
-    assert(!notice.take(true)); // No modal push or worker join during cleanup.
-    notice.observe("QUEUE_LEFT",0);
-    const auto exited=notice.take(false);
-    assert(exited && exited->position==243 && exited->confirmed);
-    assert(!notice.take(false)); // Once per attempt, not every draw frame.
-    notice.observe("QUEUE_ABANDONED_TOO_LONG",327);
-    notice.observe("QUEUE_LEAVE_FAILED",28);
-    const auto unconfirmed=notice.take(false);
-    assert(unconfirmed && unconfirmed->position==327 && !unconfirmed->confirmed);
-    notice.observe("QUEUE_ABANDONED_TOO_LONG",233);notice.clear();
-    assert(!notice.take(false)); // A new attempt never inherits the old modal.
-    notice.observe("LAUNCH_CANCELLED",0);notice.observe("QUEUE_LEFT",0);
-    assert(!notice.take(false)); // Manual cancel is not a long-queue exit.
     for(const auto* cleanup:{"QUEUE_LEFT","QUEUE_LEAVE_FAILED"}) {
         assert(!PublishesStatus(cleanup,true));
         assert(!PublishesStatus(cleanup,false));

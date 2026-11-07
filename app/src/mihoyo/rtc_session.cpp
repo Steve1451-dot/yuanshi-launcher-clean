@@ -1,4 +1,5 @@
 #include "mihoyo/rtc_session.hpp"
+#include "mihoyo/stream_quality_policy.hpp"
 #include "webrtc/media_ingress_diagnostics.hpp"
 #include "webrtc/peer_poll_policy.hpp"
 #include "mihoyo/peer_recovery_policy.hpp"
@@ -1024,9 +1025,15 @@ bool Session::send_device_info(std::uint32_t screen_width, std::uint32_t screen_
 
 bool Session::set_graphics_mode(std::int32_t mode) {
     if (!running_ || !authenticated_) return false;
+    const auto range=StreamQualityBitrate(mode);
+    if(!range) return false;
     const auto packet = control::EncodeSetGraphicsMode(mode);
     if (packet.empty()) return false;
-    return signaling_.send(signaling::MessageType::Proxy, packet);
+    // The graphics enum alone does not replace the stream's bitrate limits.
+    // Apply the explicit range afterwards, like the official floating menu.
+    if(!signaling_.send(signaling::MessageType::Proxy,packet)) return false;
+    return signaling_.send(signaling::MessageType::Proxy,
+        control::EncodeSetBitrate(MihoyoBitrate(range->minimum),MihoyoBitrate(range->maximum)));
 }
 
 bool Session::set_fps(std::uint32_t fps) {

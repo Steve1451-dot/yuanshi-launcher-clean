@@ -6,6 +6,7 @@
 #include "mihoyo/rtc_session.hpp"
 #include "mihoyo/genshin_input_experiment.hpp"
 #include "mihoyo/gyro_stick_assist.hpp"
+#include "mihoyo/stream_quality_policy.hpp"
 #include "mihoyo_sdp_answer_fixture.hpp"
 #include <iostream>
 #include <borealis/extern/nlohmann/json.hpp>
@@ -81,6 +82,7 @@ int main() {
     assert(session.start());session.poll();
     assert(session.network_rtt_ms()==-1);
     assert(!session.is_authenticated() && !live_peer && creates==0);
+    assert(!session.set_graphics_mode(0) && !session.set_fps(60));
     auto sent=frames(latest());assert(sent.size()==1 && sent[0].opcode==2);
     const auto initial=signaling::DecodeFrame({sent[0].payload.begin(),sent[0].payload.end()});
     assert(initial && initial->type==signaling::MessageType::Proxy && control::DecodePacket(initial->payload)->command==control::kStartGameReq);
@@ -130,6 +132,27 @@ int main() {
     const auto keyframe_signal=signaling::DecodeFrame({keyframe_frame.payload.begin(),keyframe_frame.payload.end()});
     assert(keyframe_signal && keyframe_signal->type==signaling::MessageType::Proxy &&
         control::DecodePacket(keyframe_signal->payload)->command==control::kKeyFrameReq);
+    for(int tier=0;tier<3;++tier) {
+        const auto before=frames(latest()).size();
+        assert(session.set_graphics_mode(tier));session.poll();
+        const auto outgoing=frames(latest());assert(outgoing.size()==before+2);
+        const auto graphics=signaling::DecodeFrame({outgoing[before].payload.begin(),outgoing[before].payload.end()});
+        const auto bitrate=signaling::DecodeFrame({outgoing[before+1].payload.begin(),outgoing[before+1].payload.end()});
+        const auto range=*StreamQualityBitrate(tier);
+        assert(graphics && graphics->type==signaling::MessageType::Proxy &&
+            graphics->payload==control::EncodeSetGraphicsMode(tier));
+        assert(bitrate && bitrate->type==signaling::MessageType::Proxy &&
+            bitrate->payload==control::EncodeSetBitrate(MihoyoBitrate(range.minimum),MihoyoBitrate(range.maximum)));
+    }
+    const auto before_invalid=frames(latest()).size();
+    assert(!session.set_graphics_mode(-1) && !session.set_graphics_mode(3));session.poll();
+    assert(frames(latest()).size()==before_invalid);
+    for(const auto fps:{30,60}) {
+        assert(session.set_fps(fps));session.poll();
+        const auto outgoing=frames(latest()).back();
+        const auto signal=signaling::DecodeFrame({outgoing.payload.begin(),outgoing.payload.end()});
+        assert(signal && signal->payload==control::EncodeSetFps(fps));
+    }
     assert(session.send_gamepad({},1) && control::DecodePacket(sent_data)->command==20010);
     input::MotionSample motion;
     motion.valid=true;motion.source=0;motion.sequence=1;motion.sampled_ms=100;motion.gravity={0,0,1};

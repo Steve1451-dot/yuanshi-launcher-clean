@@ -196,6 +196,14 @@ std::vector<std::uint8_t> EncodeSetFps(std::uint32_t fps) {
     return EncodePacket(packet);
 }
 
+std::vector<std::uint8_t> EncodeSetBitrate(std::uint32_t minimum,std::uint32_t maximum) {
+    if(!minimum || maximum<minimum || maximum>100000000) return {};
+    Packet packet{kSetBitrateReq,{}, {}};
+    Varint(packet.body,1<<3);Varint(packet.body,minimum);
+    Varint(packet.body,2<<3);Varint(packet.body,maximum);
+    return EncodePacket(packet);
+}
+
 std::vector<std::uint8_t> EncodeKeyframeRequest() {
     return EncodePacket({kKeyFrameReq,{}, {}});
 }

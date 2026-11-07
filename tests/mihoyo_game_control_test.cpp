@@ -67,6 +67,13 @@ int main() {
         0x45,0x67,0x4e,0x44,0x00,0x00,0x00,0x00,0x00,0x02,0x08,0x02,0x89,0xab}));
     assert(EncodeSetFps(0).empty() && EncodeSetFps(241).empty());
     assert(EncodeSetGraphicsMode(3).empty());
+    // Captured official serializer shape: command 20019, uint32 min/max bps.
+    assert((EncodeSetBitrate(3000*1024,4000*1024)==std::vector<std::uint8_t>{
+        0x45,0x67,0x4e,0x33,0,0,0,0,0,10,
+        0x08,0x80,0xc0,0xbb,0x01,0x10,0x80,0x80,0xfa,0x01,0x89,0xab}));
+    assert(EncodeSetBitrate(0,4000000).empty());
+    assert(EncodeSetBitrate(4000000,3000000).empty());
+    assert(EncodeSetBitrate(3000000,100000001).empty());
     // proto.msg.SyncGameControlMode (20037) is server->client: the CA's
     // dispCmd decodes field 1 (int32) and forwards {"control_mode":...}.
     assert(DecodeSyncGameControlMode(std::vector<std::uint8_t>{0x08,0x03}).value_or(-1) == 3);

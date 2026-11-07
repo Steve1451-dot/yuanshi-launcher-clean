@@ -6,6 +6,8 @@
 #include "mihoyo/combo_exchange.hpp"
 #include "mihoyo/ping_probe.hpp"
 #include "mihoyo/passport_token_resume.hpp"
+#include "mihoyo/stream_settings_store.hpp"
+#include <filesystem>
 #include <borealis/extern/nlohmann/json.hpp>
 #include <cassert>
 #include <algorithm>
@@ -52,6 +54,8 @@ std::vector<int> positions;
 std::vector<int> login_network_errors;
 unsigned web_resumes=0;
 bool web_resume_ok=true,web_resume_wrong_account=false;
+std::string settings_home;
+int expected_graphics=kStartupGraphicsMode,expected_fps=kStartupStreamFps;
 dispatch::DispatchResponse Finished() {
     dispatch::DispatchResponse result;
     result.status=dispatch::DispatchStatus::Finished;result.requires_ticket_ack=true;
@@ -66,6 +70,10 @@ void Reset(Scenario value) {
     initial_position=12;omit_queue_rank=false;events.clear();positions.clear();
 }
 } // namespace
+
+namespace opennow {
+const std::string& AppHomePath() {return settings_home;}
+}
 
 namespace cloudgenshin {
 std::optional<Authorization> ResumePassportFromAccount(const GameProfile& game,const Authorization& saved,
@@ -194,10 +202,8 @@ DispatchResponse SubmitInitialDispatch(const GameProfile& profile,const InitialD
     assert(expected_profile && body["biz_key"]==std::string(expected_profile->game_biz) &&
         body["queue_type"]=="" && body["hint"].is_null());
     assert(body["net_state"]==4 && body["env"]=="2");
-    assert(body["fps"]==60); // User-requested low-quality/high-frame-rate startup.
-    // Official low tier ceiling: 4000 kbps = 4,000,000 bit/s. The old 2.56 Mbps
-    // request was below the documented kBitRateLow tier.
-    assert(body["bit_rate"]==4000000);
+    assert(body["fps"]==expected_fps);
+    assert(body["bit_rate"]==MihoyoBitrate(StreamQualityBitrate(expected_graphics)->maximum));
     const auto user_data=nlohmann::json::parse(body["user_data"].get<std::string>());
     if(profile.id=="hk4e" || profile.id=="hkrpg")
         assert(user_data["idg"]==true);
@@ -248,6 +254,9 @@ QueueActionResult SubmitQueueAction(const GameProfile& profile,const QueueReques
 
 int main() {
     using namespace cloudgenshin;
+    const auto directory=std::filesystem::temp_directory_path()/
+        ("launch-settings-test-"+std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+    std::filesystem::create_directory(directory);settings_home=directory.string();
     // The launch flow is exercised with the default production profile; the
     // mocks above pin every request to the active game identity.
     const auto& profile=DefaultGameProfile();
@@ -280,6 +289,14 @@ int main() {
     Reset(Scenario::QueueSuccess);
     auto result=Launch(profile,*authorization,cancelled,progress);
     assert(result && prepared==4 && dispatched==1 && polls==1 && acks==1 && leaves==0);
+    // A saved high-quality/30 FPS choice must change the signed dispatch, not
+    // just the overlay after a pod was already allocated with the low ceiling.
+    const auto settings_path=overlay::StreamSettingsPath(settings_home,profile.id);
+    assert(overlay::SaveSavedSettings(settings_path,0,30));
+    expected_graphics=0;expected_fps=30;Reset(Scenario::QueueSuccess);
+    assert(Launch(profile,*authorization,cancelled,progress));
+    std::filesystem::remove(settings_path);
+    expected_graphics=kStartupGraphicsMode;expected_fps=kStartupStreamFps;
     static_assert(QueueWaitLimit({}).count()==120);
     static_assert(QueueWaitLimit({true}).count()==30);
     // Queue size and rank are different in the APK. Large totals must not
@@ -512,4 +529,5 @@ int main() {
         }
     }
     resume_scenario.reset();
+    std::filesystem::remove_all(directory);
 }

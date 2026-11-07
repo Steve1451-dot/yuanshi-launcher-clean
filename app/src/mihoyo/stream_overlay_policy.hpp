@@ -105,6 +105,13 @@ public:
             (static_cast<std::uint64_t>(value&255)<<2) | static_cast<unsigned>(State::Queued))) {}
     }
     Snapshot snapshot() const {return {bits_.load()};}
+    void retry() {
+        auto old=bits_.load();
+        while((old&3)!=static_cast<unsigned>(State::Unset)) {
+            const auto next=(((old>>10)+1)<<10) | (old&1020) | static_cast<unsigned>(State::Queued);
+            if(bits_.compare_exchange_weak(old,next)) return;
+        }
+    }
     std::optional<Snapshot> pending() const {
         const auto s=snapshot();return s.state()==State::Queued ? std::optional<Snapshot>(s) : std::nullopt;
     }

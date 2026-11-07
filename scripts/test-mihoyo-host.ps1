@@ -1,7 +1,8 @@
-param([string]$CompilerRoot = 'C:/Users/y/scoop/apps/mingw/current/bin', [string[]]$TestNames)
+param([string]$CompilerRoot = 'C:/Users/y/scoop/apps/mingw/current/bin', [string[]]$TestNames,
+    [string]$OutputDirectory = (Join-Path $PSScriptRoot '../build/host'))
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path $PSScriptRoot -Parent
-$testOutput = Join-Path (Split-Path (Split-Path $repo -Parent) -Parent) '.opennow-msys-tmp'
+$testOutput = [System.IO.Path]::GetFullPath($OutputDirectory)
 New-Item -ItemType Directory -Force -Path $testOutput | Out-Null
 $env:TMPDIR=$testOutput; $env:TEMP=$testOutput; $env:TMP=$testOutput
 Push-Location $repo
@@ -89,6 +90,7 @@ try {
         gyro_stick_assist=@()
         mihoyo_launcher_status=@()
         mihoyo_stream_overlay_policy=@()
+        stream_setting_delivery=@()
         network_latency=@()
         network_latency_draw=@('-isystem','extern/borealis/library/include/borealis/extern/nanovg')
         compact_stream_menu=@()

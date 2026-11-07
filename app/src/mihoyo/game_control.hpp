@@ -21,6 +21,7 @@ inline constexpr std::uint16_t kResetInputsReq = 20030;
 // screen information to the pod as soon as the RTC data channel is connected.
 inline constexpr std::uint16_t kSdkDeviceInfo = 20017;
 inline constexpr std::uint16_t kSetFpsReq = 20022;
+inline constexpr std::uint16_t kSetBitrateReq = 20019;
 inline constexpr std::uint16_t kSetGraphicsModeReq = 20036;
 // proto.msg.SyncGameControlMode (20037) is server->client. The CA's
 // ClientCoreImpl::dispCmd decodes it, logs "sync game control mode: %d" and
@@ -88,6 +89,8 @@ struct DeviceInfo {
 };
 std::vector<std::uint8_t> EncodeSdkDeviceInfo(const DeviceInfo& info);
 std::vector<std::uint8_t> EncodeSetFps(std::uint32_t fps);
+// Official RtcSetBitrate: uint32 min_bitrate (1), max_bitrate (2), in bits/s.
+std::vector<std::uint8_t> EncodeSetBitrate(std::uint32_t minimum,std::uint32_t maximum);
 // Official web SDK keyframe request over the signaling proxy; empty protobuf.
 std::vector<std::uint8_t> EncodeKeyframeRequest();
 std::vector<std::uint8_t> EncodeSetGraphicsMode(std::int32_t mode);

@@ -1,8 +1,6 @@
 #pragma once
 
 #include <string_view>
-#include <optional>
-#include <utility>
 
 namespace cloudgenshin::launcher {
 
@@ -25,28 +23,8 @@ inline bool DispatchFailed(std::string_view status) {
         status=="DISPATCH_INVALID_RESPONSE";
 }
 
-// User-requested default: leave long ordinary queues, but explain it in a
-// one-shot UI notice, never as a login/certificate error or a silent cancel.
+// Keep the existing long-queue exit rule. Its result stays on the status card;
+// no modal notice interrupts subsequent launcher actions.
 inline bool LeavesLongQueue(int position) {return position>100;}
-struct QueueExit {
-    int position;
-    bool confirmed=false;
-};
-class QueueExitNotice {
-public:
-    void clear() {pending_.reset();}
-    void observe(std::string_view event,int code) {
-        if(event=="QUEUE_ABANDONED_TOO_LONG" && LeavesLongQueue(code)) pending_=QueueExit{code};
-        else if(pending_ && IsQueueCleanup(event)) pending_->confirmed=event=="QUEUE_LEFT";
-    }
-    std::optional<QueueExit> take(bool working) {
-        // The worker must finish the leave request before opening a dialog;
-        // pushing an activity while it runs would cancel/join it from the UI.
-        if(working) return std::nullopt;
-        return std::exchange(pending_,std::nullopt);
-    }
-private:
-    std::optional<QueueExit> pending_;
-};
 
 } // namespace cloudgenshin::launcher

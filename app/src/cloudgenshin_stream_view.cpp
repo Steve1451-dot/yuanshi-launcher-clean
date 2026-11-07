@@ -14,6 +14,7 @@
 #include "mihoyo/sdk_device_fingerprint.hpp"
 #include "mihoyo/device_info_consent.hpp"
 #include "mihoyo/stream_startup_policy.hpp"
+#include "mihoyo/setting_delivery_policy.hpp"
 #include "mihoyo/launcher_input_policy.hpp"
 #include "stream/ffmpeg/AVFrameHolder.hpp"
 #include "app_version.hpp"
@@ -675,6 +676,8 @@ void CloudGenshinStreamView::network_loop(cloudgenshin::dispatch::SdkStartGamePa
     std::chrono::steady_clock::time_point next_gamepad_list_attempt{};
     input::ControllerNeutralHandoff controller_handoff;
     auto settings_keyframe_at=started;
+    overlay::SettingSendBudget graphics_budget,fps_budget;
+    bool settings_were_ready=false;
     VideoProgressWatchdog video_progress;
     auto last_peer_poll=started;
     while (!cancelled_ && session.is_running()) {
@@ -684,7 +687,11 @@ void CloudGenshinStreamView::network_loop(cloudgenshin::dispatch::SdkStartGamePa
         session.poll();
         // Official setGraphicsMode/setFps applies in Connected, not immediately
         // after game auth while transport/initial server config is still pending.
-        settings_ready_=session.input_ready();
+        const bool settings_ready=media_.decoded()>0 && session.input_ready();
+        if(settings_ready && !settings_were_ready) {
+            graphics_request_.retry();fps_request_.retry();
+        }
+        settings_were_ready=settings_ready;settings_ready_=settings_ready;
         control_ready_=session.input_ready();
         const auto now=std::chrono::steady_clock::now();
         // Effective input route: the forced virtual-pad transport. The
@@ -858,25 +865,39 @@ void CloudGenshinStreamView::network_loop(cloudgenshin::dispatch::SdkStartGamePa
             }
         }
         if(settings_ready_) {
-            if(const auto request=graphics_request_.pending()) {
+            const auto setting_now=std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
+            if(const auto request=graphics_request_.pending();request && graphics_budget.try_write(*request,setting_now)) {
                 const bool ok=session.set_graphics_mode(request->value());
-                graphics_request_.complete(*request,ok);
-                if(ok) {
+                graphics_budget.sent(ok);
+                if(graphics_budget.delivered() || graphics_budget.exhausted()) {
+                    const bool delivered=graphics_budget.delivered();
+                    graphics_request_.complete(*request,delivered);
+                    progress_(delivered ? "STREAM_QUALITY_SENT" : "STREAM_QUALITY_SEND_FAILED",request->value(),0);
+                }
+                if(graphics_budget.delivered()) {
                     accepted_graphics_=request->value();
+                    fps_request_.retry();
                     keyframe_after_settings=true;settings_keyframe_at=now+std::chrono::milliseconds(500);
+                    const auto range=StreamQualityBitrate(request->value());
+                    progress_("STREAM_BITRATE_MIN_KBPS",range->minimum,0);
+                    progress_("STREAM_BITRATE_MAX_KBPS",range->maximum,0);
                     PersistStreamSettings();
                 }
-                progress_(ok ? "STREAM_QUALITY_SENT" : "STREAM_QUALITY_SEND_FAILED",request->value(),0);
             }
-            if(const auto request=fps_request_.pending()) {
+            if(const auto request=fps_request_.pending();request && fps_budget.try_write(*request,setting_now)) {
                 const bool ok=session.set_fps(static_cast<std::uint32_t>(request->value()));
-                fps_request_.complete(*request,ok);
-                if(ok) {
+                fps_budget.sent(ok);
+                if(ok) media_.set_fps(request->value());
+                if(fps_budget.delivered() || fps_budget.exhausted()) {
+                    const bool delivered=fps_budget.delivered();
+                    fps_request_.complete(*request,delivered);
+                    progress_(delivered ? "STREAM_FPS_SENT" : "STREAM_FPS_SEND_FAILED",request->value(),0);
+                }
+                if(fps_budget.delivered()) {
                     accepted_fps_=request->value();
                     keyframe_after_settings=true;settings_keyframe_at=now+std::chrono::milliseconds(500);
                     PersistStreamSettings();
                 }
-                progress_(ok ? "STREAM_FPS_SENT" : "STREAM_FPS_SEND_FAILED",request->value(),0);
             }
         }
         const auto now_ms=std::chrono::duration_cast<std::chrono::milliseconds>(

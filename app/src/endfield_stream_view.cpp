@@ -717,6 +717,8 @@ void EndfieldStreamView::network_loop(VlinkSdkData sdk,std::string auth_code,
     bool video_rtp_seen=false;
     bool first_frame=false,game_seen=false,fps_sent=false,intercept_sent=false,resolution_sent=false;
     SettingSendBudget bitrate_budget,fps_budget;
+    bool settings_were_ready=false,keyframe_after_settings=false;
+    auto settings_keyframe_at=started;
     AdaptiveBitrate adaptive_bitrate;
     bool settings_reported=false;
     bool entry_click_enabled=false;
@@ -796,15 +798,20 @@ void EndfieldStreamView::network_loop(VlinkSdkData sdk,std::string auth_code,
                 std::uint64_t recovery_generation=0;
                 const bool recovery=media_.take_keyframe_request(&recovery_generation);
                 const bool needed=recovery ||
-                    (first_frame && now-last_decode_progress>std::chrono::seconds(2));
+                    (first_frame && now-last_decode_progress>std::chrono::seconds(2)) ||
+                    (keyframe_after_settings && now>=settings_keyframe_at);
                 if(keyframe_policy.due(std::chrono::duration_cast<std::chrono::milliseconds>(
                         now.time_since_epoch()).count(),needed,recovery_generation)) {
-                    if(session.request_keyframe()) ++keyframe_requests;
+                    if(session.request_keyframe()) {++keyframe_requests;keyframe_after_settings=false;}
                     else ++keyframe_failures;
                 }
             }
         }
-        settings_ready_=first_frame && input_channel_ready_.load();
+        const bool settings_ready=first_frame && input_channel_ready_.load();
+        if(settings_ready && !settings_were_ready) {
+            bitrate_request_.retry();fps_request_.retry();
+        }
+        settings_were_ready=settings_ready;settings_ready_=settings_ready;
         if(first_frame && now>=next_settings) {
             next_settings=now+std::chrono::milliseconds(500);
             // The official web client applies the runtime refresh-rate choice
@@ -819,20 +826,29 @@ void EndfieldStreamView::network_loop(VlinkSdkData sdk,std::string auth_code,
             const auto setting_now=std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
             if(const auto request=bitrate_request_.pending();request && settings_ready_ && bitrate_budget.try_write(*request,setting_now)) {
                 const bool accepted=session.set_bitrate_tier(request->value());
-                if(accepted || bitrate_budget.exhausted()) bitrate_request_.complete(*request,accepted);
-                if(accepted) {
+                bitrate_budget.sent(accepted);
+                if(bitrate_budget.delivered() || bitrate_budget.exhausted())
+                    bitrate_request_.complete(*request,bitrate_budget.delivered());
+                if(bitrate_budget.delivered()) {
                     accepted_tier_=request->value();persist_stream_settings();
+                    fps_request_.retry();
+                    keyframe_after_settings=true;settings_keyframe_at=now+std::chrono::milliseconds(500);
                     const auto range=kStreamBitrates[request->value()];
                     adaptive_bitrate.configure(range.minimum,range.maximum,setting_now);
                     active_bitrate_limit_=range.maximum;
                     progress_("ENDFIELD_BITRATE_REQUEST_SENT",kStreamBitrates[request->value()].maximum,0);
+                    progress_("STREAM_BITRATE_MIN_KBPS",range.minimum,0);
                 } else if(bitrate_budget.exhausted()) progress_("ENDFIELD_BITRATE_REQUEST_FAILED",request->value(),0);
             }
             if(const auto request=fps_request_.pending();request && settings_ready_ && fps_budget.try_write(*request,setting_now)) {
                 const bool accepted=session.set_fps(request->value());
-                if(accepted || fps_budget.exhausted()) fps_request_.complete(*request,accepted);
-                if(accepted) {
+                fps_budget.sent(accepted);
+                if(accepted) media_.set_fps(request->value());
+                if(fps_budget.delivered() || fps_budget.exhausted())
+                    fps_request_.complete(*request,fps_budget.delivered());
+                if(fps_budget.delivered()) {
                     fps_sent=true;accepted_fps_=request->value();persist_stream_settings();
+                    keyframe_after_settings=true;settings_keyframe_at=now+std::chrono::milliseconds(500);
                     progress_("STREAM_FPS_SENT",request->value(),0);
                 } else if(fps_budget.exhausted()) progress_("ENDFIELD_FPS_REQUEST_FAILED",request->value(),0);
             }

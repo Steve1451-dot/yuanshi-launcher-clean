@@ -4,6 +4,8 @@
 #include "endfield/endfield_profile.hpp"
 #include "endfield/wl_proto.hpp"
 #include "mihoyo/stream_overlay_policy.hpp"
+#include "mihoyo/stream_quality_policy.hpp"
+#include "mihoyo/setting_delivery_policy.hpp"
 #include <array>
 #include <fstream>
 #include <string>
@@ -11,9 +13,8 @@
 namespace cloudgenshin::endfield {
 // Row order matches the existing Genshin floating menu; this file is separate
 // from its graphics-mode preference (the two protocols are not interchangeable).
-struct BitrateRange {int minimum,maximum;};
-inline constexpr std::array<BitrateRange,3> kStreamBitrates{{
-    {4000,kBitRateHigh},{3000,kBitRateMedium},{1000,kBitRateLow}}};
+using BitrateRange=cloudgenshin::StreamBitrateRange;
+inline constexpr auto kStreamBitrates=cloudgenshin::kStreamQualityBitrates;
 inline constexpr int kDefaultBitrateTier=2;
 inline bool ValidBitrateTier(int tier) {return tier>=0 && tier<3;}
 inline bool ValidStreamFps(int fps) {return fps==30 || fps==60;}
@@ -79,17 +80,5 @@ inline std::vector<std::uint8_t> StreamFpsFrame(int fps) {
 
 // Worker-owned budget per UI revision. New explicit choices/retries get a new
 // budget; exhausting initial startup must not permanently disable the menu.
-class SettingSendBudget {
-public:
-    bool try_write(overlay::SettingRequest::Snapshot request,std::int64_t now) {
-        if(request.bits!=revision_) {revision_=request.bits;attempts_=0;next_=now;}
-        if(attempts_>=20 || now<next_) return false;
-        ++attempts_;next_=now+500;return true;
-    }
-    bool exhausted() const {return attempts_>=20;}
-private:
-    std::uint64_t revision_=0;
-    unsigned attempts_=0;
-    std::int64_t next_=0;
-};
+using SettingSendBudget=overlay::SettingSendBudget;
 } // namespace cloudgenshin::endfield

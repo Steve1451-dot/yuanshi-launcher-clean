@@ -1,5 +1,6 @@
 #pragma once
 #include "mihoyo/game_control.hpp"
+#include "mihoyo/stream_quality_policy.hpp"
 #include <cstdint>
 
 namespace cloudgenshin {
@@ -7,10 +8,7 @@ namespace cloudgenshin {
 // These are requests, not proof that the server has applied them.
 inline constexpr int kStartupStreamFps=60;
 inline constexpr int kStartupGraphicsMode=control::kGraphicsExtremeSaving;
-// Dispatch bit_rate is in bits/s. The official low profile is kBitRateLow
-// 4000 kbps; 2,560,000 under-requested that tier and produced avoidable
-// compression artifacts. Keep the request at the documented low ceiling.
-inline constexpr std::uint32_t kStartupBitRate=4000000;
+inline constexpr std::uint32_t kStartupBitRate=MihoyoBitrate(kStreamQualityBitrates[kStartupGraphicsMode].maximum);
 
 // Network-worker clock/counters only. Decoded pictures are not game-loading
 // progress. A still scene that continues decoding must never cause a reset.

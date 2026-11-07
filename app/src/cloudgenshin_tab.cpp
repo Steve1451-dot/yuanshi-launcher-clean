@@ -208,7 +208,6 @@ struct NativeTab::State {
     std::string status="READY";
     int status_code=0;
     long status_http=0;
-    launcher::QueueExitNotice queue_exit_notice;
     // Queue progress for the status card. Fed by QUEUED_POSITION events;
     // the estimate is derived from observed movement, never invented.
     struct QueueSample {double at;int position;};
@@ -239,10 +238,9 @@ struct NativeTab::State {
     void event(const std::string& name,int code=0,long http=0,bool update_status=true) {
         const bool publish=launcher::PublishesStatus(name,
             endfield::PublishesLauncherStatus(name,update_status));
-        if (publish || launcher::IsQueueCleanup(name)) {
+        if (publish) {
             std::lock_guard lock(mutex);
-            queue_exit_notice.observe(name,code);
-            if(publish) {status=name;status_code=code;status_http=http;}
+            status=name;status_code=code;status_http=http;
         }
         if(name=="QUEUED_POSITION") {
             std::lock_guard lock(mutex);
@@ -724,7 +722,6 @@ void NativeTab::begin(bool launch,bool restore_only,bool passport) {
     {std::lock_guard lock(state_->mutex);if(state_->endfield_selected) return;}
     if (state_->active.exchange(true)) return;
     if (worker_.joinable()) worker_.join();
-    {std::lock_guard lock(state_->mutex);state_->queue_exit_notice.clear();}
     state_->cancelled=false;
     const auto state=state_;
     worker_=std::thread([state,launch,restore_only,passport]{
@@ -1485,7 +1482,6 @@ void NativeTab::draw(NVGcontext* vg,float x,float y,float width,float height,brl
     bool working=false;
     bool endfield_ready=false;
     bool endfield_starting=false;
-    std::optional<launcher::QueueExit> queue_exit_notice;
     std::string status;
     {
         std::lock_guard lock(state_->mutex);
@@ -1496,7 +1492,6 @@ void NativeTab::draw(NVGcontext* vg,float x,float y,float width,float height,brl
         working=state_->active;
         status=state_->status;
         endfield_ready=state_->endfield_ready;
-        if(!endfield) queue_exit_notice=state_->queue_exit_notice.take(working);
         if (!state_->active && !state_->cancelled && state_->startup && state_->authorization) {
             startup=std::move(state_->startup);state_->startup.reset();startup_authorization=*state_->authorization;
             sdk_version=std::string(state_->game->sdk_version);
@@ -1595,18 +1590,6 @@ void NativeTab::draw(NVGcontext* vg,float x,float y,float width,float height,brl
             [state](const std::string& name,int code,long http){state->event(name,code,http);},
             [state]{return state->log.recent(8);}, [state]{return state->save_log(true);},
             automatic_.enabled() ? -1 : 0 )));
-    } else if(queue_exit_notice) {
-        // UI thread only; the worker and its server-side cleanup have finished.
-        std::string body=ui::Text("Long queue stopped")+"\n\n"+
-            ui::Text("Players ahead")+": "+std::to_string(queue_exit_notice->position)+"\n"+
-            ui::Text("This client automatically stops queues above 100 players.")+"\n\n"+
-            ui::Text(queue_exit_notice->confirmed
-                ? "This attempt has left the queue. Login is kept; no need to scan again."
-                : "Queue exit was not confirmed. Local waiting stopped; login is kept.");
-        auto* dialog=new brls::Dialog(body);
-        dialog->addButton(ui::Text("Got it"),[]{});
-        dialog->setCancelable(true);
-        dialog->open();
     } else if(!endfield) {
         const auto now_ms=std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::steady_clock::now().time_since_epoch()).count();

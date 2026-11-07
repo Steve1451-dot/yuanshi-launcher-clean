@@ -11,7 +11,7 @@ int main() {
         ("endfield-stream-test-"+std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()))).string();
     auto settings=LoadStreamSettings(path);
     assert(!settings.valid && settings.tier==2 && settings.fps==60);
-    assert(kStreamBitrates[settings.tier].minimum==1000 && kStreamBitrates[settings.tier].maximum==4000);
+    assert(kStreamBitrates[settings.tier].minimum==3000 && kStreamBitrates[settings.tier].maximum==4000);
     assert(kDispatchFps==60 && kDefaultStreamFps==60);
     assert(!SaveStreamSettings(path,-1,30) && !SaveStreamSettings(path,3,30));
     assert(!SaveStreamSettings(path,2,0) && !SaveStreamSettings(path,2,120));
@@ -40,7 +40,7 @@ int main() {
 
     const auto commands=BitrateCommands(2,0);
     assert(commands[0].cmd=="ResetVideoBitrate" && commands[0].arg=="4000");
-    assert(commands[1].cmd=="autoBitrateAdjust" && commands[1].arg=="1000");
+    assert(commands[1].cmd=="autoBitrateAdjust" && commands[1].arg=="3000");
     const auto lower_first=BitrateCommands(2,4000);
     assert(lower_first[0].cmd=="autoBitrateAdjust" && lower_first[1].cmd=="ResetVideoBitrate");
     for(int tier=0;tier<3;++tier) for(const auto& cmd:BitrateCommands(tier,0)) {
@@ -60,7 +60,7 @@ int main() {
         return ++writes!=2;
     };
     assert(!SendBitrateTier(2,previous_minimum,send) && previous_minimum==4000 && writes==2);
-    assert(SendBitrateTier(2,previous_minimum,send) && previous_minimum==1000 && writes==4);
+    assert(SendBitrateTier(2,previous_minimum,send) && previous_minimum==3000 && writes==4);
     assert(!SendBitrateTier(3,previous_minimum,send) && writes==4);
     for(const auto fps:{30,60}) {
         const auto parsed=SimpleCmd::Parse(StreamFpsFrame(fps));

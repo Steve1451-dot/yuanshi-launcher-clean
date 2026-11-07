@@ -19,6 +19,7 @@ class MediaPipeline {
 public:
     ~MediaPipeline();
     bool start(int fps,int audio_buffer_ms=40,bool hardware_probe=false);
+    void set_fps(int fps) {fps_=fps==30 ? 30 : 60;}
     // Stop accepting decode work without freeing a frame borrowed by the UI.
     // The owner joins the decoder and frees frames via stop() on the UI thread.
     void request_stop();
@@ -103,6 +104,6 @@ private:
     std::atomic_uint buffer_allocations_{0},buffer_reuses_{0},buffer_failures_{0},buffer_reserved_{0};
     opennow::webrtc::DecodeRecoveryState recovery_;
     opennow::video::FrameRecoveryTimings recovery_timings_;
-    int fps_ = 30;
+    std::atomic_int fps_{30};
 };
 } // namespace cloudgenshin

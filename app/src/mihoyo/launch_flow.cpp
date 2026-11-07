@@ -2,6 +2,8 @@
 #include "mihoyo/launcher_status.hpp"
 #include "mihoyo/production_profile.hpp"
 #include "mihoyo/stream_startup_policy.hpp"
+#include "mihoyo/stream_settings_store.hpp"
+#include "app_paths.hpp"
 #include "mihoyo/dispatch_prepare.hpp"
 #include "mihoyo/initial_dispatch.hpp"
 #include "mihoyo/queue_ticket.hpp"
@@ -371,7 +373,10 @@ std::optional<dispatch::SdkStartGameParams> Launch(const GameProfile& profile,
     const auto device_info=nlohmann::json{{"deviceName","Nintendo Switch"},{"systemVersion","Horizon"},
         {"deviceInfo","operatingSystem:Horizon&deviceModel:Switch&processorCount:4&processorType:ARM64&graphicsDeviceName:Tegra"}}.dump();
     InitialDispatchParams params;
-    params.bit_rate=kStartupBitRate; params.fps=kStartupStreamFps; params.node_id=selected->id;
+    const auto saved=overlay::LoadSavedSettings(overlay::StreamSettingsPath(opennow::AppHomePath(),profile.id));
+    const auto range=StreamQualityBitrate(saved.valid ? saved.graphics : kStartupGraphicsMode);
+    params.bit_rate=MihoyoBitrate(range->maximum);
+    params.fps=saved.valid ? saved.fps : kStartupStreamFps;params.node_id=selected->id;
     params.regions_json=selected->regions_json; params.resolution="1280x720"; params.environment="2";
     progress("DISPATCH_BIT_RATE",static_cast<int>(params.bit_rate),0);
     auto user_data=nlohmann::json{{"dpi",96},{"w",1280},{"h",720},{"lang","zh-cn"},{"di",Base64(device_info)}};

@@ -151,6 +151,8 @@ private:
     // Worker-side decision: never depends on touch contacts.
     cloudgenshin::input::InputReleaseGate release_gate_;
     cloudgenshin::overlay::SettingRequest graphics_request_,fps_request_;
+    std::atomic_bool smoothness_protection_{false};
+    std::atomic_int active_fps_{0}; // Last locally accepted request, not measured FPS.
     // Last values written to this game's stream settings, so a repeated
     // sent request does not rewrite the SD card every session.
     int persisted_graphics_=-1,persisted_fps_=0;

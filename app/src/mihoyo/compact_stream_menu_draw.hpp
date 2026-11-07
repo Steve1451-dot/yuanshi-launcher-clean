@@ -11,6 +11,8 @@ struct CompactStreamMenuStatus {
     double decoded_fps=0,mbps=0;
     bool hardware=false,settings_ready=false,control_ready=false,continue_ready=false;
     bool hud=false,hardware_preferred=false,confirm_exit=false;
+    bool smoothness_protection=false;
+    int active_fps=0;
     SettingRequest::Snapshot quality{0},fps{0};
 };
 inline void DrawCompactStreamMenu(NVGcontext* vg,Rect bounds,const CompactStreamMenu& menu,
@@ -37,7 +39,8 @@ inline void DrawCompactStreamMenu(NVGcontext* vg,Rect bounds,const CompactStream
     char summary[128]{};
     std::snprintf(summary,sizeof(summary),"   %.1f FPS   %.2f Mbps",status.decoded_fps,status.mbps);
     text(p.x+22,p.y+67,status.resolution+summary,16,white);
-    text(p.x+22,p.y+91,ui::Text(status.hardware?"Hardware decode":"Software decode")+"  |  "+
+    text(p.x+22,p.y+91,ui::Text(status.smoothness_protection ? "Smoothness protection" :
+        status.hardware?"Hardware decode":"Software decode")+"  |  "+
         ui::Text(status.control_ready?"Control ready":"Control not ready"),14,muted);
     for(int i=0;i<menu.count();++i) {
         const auto r=layout.row(i);const int command=menu.command(i);
@@ -49,10 +52,13 @@ inline void DrawCompactStreamMenu(NVGcontext* vg,Rect bounds,const CompactStream
             ui::Text(quality_names[std::clamp(status.quality.value(),0,2)]);
         if(command==-2) tag=status.fps.state()==SettingRequest::State::Unset ? "--" :
             std::to_string(status.fps.value()==30?30:60)+" FPS";
+        const bool auto_fps=status.active_fps==30 && status.fps.value()==60 && status.smoothness_protection &&
+            status.fps.state()==SettingRequest::State::Sent;
+        if(command==-2 && auto_fps) tag=ui::Text("Auto: 30 FPS");
         if(command>=0 && command<=2 && status.quality.value()==command)
             tag=ui::Text(request_status(status.quality.state()));
         if((command==3 || command==4) && status.fps.value()==(command==3?30:60))
-            tag=ui::Text(request_status(status.fps.state()));
+            tag=ui::Text(auto_fps ? "Auto: 30 FPS" : request_status(status.fps.state()));
         if(command==5) tag=ui::Text(status.hud?"On":"Off");
         if(command==11) tag=ui::Text(status.hardware_preferred?"HW preferred":"Software decode");
         const auto label=ui::Text(command==10 && status.confirm_exit?"Confirm stop + return":menu.label(i));

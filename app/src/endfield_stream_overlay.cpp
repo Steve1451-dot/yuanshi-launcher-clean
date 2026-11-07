@@ -168,6 +168,7 @@ void EndfieldStreamView::draw_overlay(NVGcontext* vg,overlay::Rect bounds) {
         AllowTitleProbe(static_cast<GameBridge::Request>(game_lifecycle_.load()));
     status.hud=stats_visible_;status.hardware_preferred=decoder_selection_.preferred();status.confirm_exit=confirm_exit_;
     status.quality=bitrate_request_.snapshot();status.fps=fps_request_.snapshot();
+    status.smoothness_protection=smoothness_protection_;status.active_fps=active_fps_;
     overlay::DrawCompactStreamMenu(vg,bounds,stream_menu_,quality_menu_index_,status);
     nvgRestore(vg);
 }

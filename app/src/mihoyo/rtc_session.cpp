@@ -1032,8 +1032,14 @@ bool Session::set_graphics_mode(std::int32_t mode) {
     // The graphics enum alone does not replace the stream's bitrate limits.
     // Apply the explicit range afterwards, like the official floating menu.
     if(!signaling_.send(signaling::MessageType::Proxy,packet)) return false;
+    return set_bitrate_range(range->minimum,range->maximum);
+}
+
+bool Session::set_bitrate_range(int minimum,int maximum) {
+    if(!running_ || !authenticated_ || minimum<kStreamQualityBitrates[2].minimum ||
+       maximum<minimum || maximum>kStreamQualityBitrates[0].maximum) return false;
     return signaling_.send(signaling::MessageType::Proxy,
-        control::EncodeSetBitrate(MihoyoBitrate(range->minimum),MihoyoBitrate(range->maximum)));
+        control::EncodeSetBitrate(MihoyoBitrate(minimum),MihoyoBitrate(maximum)));
 }
 
 bool Session::set_fps(std::uint32_t fps) {

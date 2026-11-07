@@ -15,6 +15,7 @@
 #include "mihoyo/device_info_consent.hpp"
 #include "mihoyo/stream_startup_policy.hpp"
 #include "mihoyo/setting_delivery_policy.hpp"
+#include "mihoyo/adaptive_stream_policy.hpp"
 #include "mihoyo/launcher_input_policy.hpp"
 #include "stream/ffmpeg/AVFrameHolder.hpp"
 #include "app_version.hpp"
@@ -677,6 +678,8 @@ void CloudGenshinStreamView::network_loop(cloudgenshin::dispatch::SdkStartGamePa
     input::ControllerNeutralHandoff controller_handoff;
     auto settings_keyframe_at=started;
     overlay::SettingSendBudget graphics_budget,fps_budget;
+    AdaptiveStream adaptive_stream;
+    auto next_adaptive_sample=started;
     bool settings_were_ready=false;
     VideoProgressWatchdog video_progress;
     auto last_peer_poll=started;
@@ -879,6 +882,8 @@ void CloudGenshinStreamView::network_loop(cloudgenshin::dispatch::SdkStartGamePa
                     fps_request_.retry();
                     keyframe_after_settings=true;settings_keyframe_at=now+std::chrono::milliseconds(500);
                     const auto range=StreamQualityBitrate(request->value());
+                    adaptive_stream.configure(*range,fps_request_.snapshot().value(),setting_now);
+                    smoothness_protection_=false;
                     progress_("STREAM_BITRATE_MIN_KBPS",range->minimum,0);
                     progress_("STREAM_BITRATE_MAX_KBPS",range->maximum,0);
                     PersistStreamSettings();
@@ -887,7 +892,7 @@ void CloudGenshinStreamView::network_loop(cloudgenshin::dispatch::SdkStartGamePa
             if(const auto request=fps_request_.pending();request && fps_budget.try_write(*request,setting_now)) {
                 const bool ok=session.set_fps(static_cast<std::uint32_t>(request->value()));
                 fps_budget.sent(ok);
-                if(ok) media_.set_fps(request->value());
+                if(ok) {media_.set_fps(request->value());active_fps_=request->value();}
                 if(fps_budget.delivered() || fps_budget.exhausted()) {
                     const bool delivered=fps_budget.delivered();
                     fps_request_.complete(*request,delivered);
@@ -895,6 +900,8 @@ void CloudGenshinStreamView::network_loop(cloudgenshin::dispatch::SdkStartGamePa
                 }
                 if(fps_budget.delivered()) {
                     accepted_fps_=request->value();
+                    adaptive_stream.manual_fps(request->value(),setting_now);
+                    smoothness_protection_=adaptive_stream.protecting();
                     keyframe_after_settings=true;settings_keyframe_at=now+std::chrono::milliseconds(500);
                     PersistStreamSettings();
                 }
@@ -902,6 +909,33 @@ void CloudGenshinStreamView::network_loop(cloudgenshin::dispatch::SdkStartGamePa
         }
         const auto now_ms=std::chrono::duration_cast<std::chrono::milliseconds>(
             now.time_since_epoch()).count();
+        // Sample independently of opt-in diagnostics. Each setting revision is
+        // completed first; manual choices and reconnects cancel stale auto work.
+        if(settings_ready_ && graphics_request_.snapshot().state()==overlay::SettingRequest::State::Sent &&
+           fps_request_.snapshot().state()==overlay::SettingRequest::State::Sent) {
+            if(now>=next_adaptive_sample) {
+                next_adaptive_sample=now+std::chrono::seconds(1);
+                PeerVideoRtpStats stats{};
+                if(session.video_rtp_stats(&stats)) adaptive_stream.observe(now_ms,
+                    {stats.access_units_completed,stats.access_units_dropped,stats.reorder_timeout_skips,
+                     stats.reorder_capacity_skips,media_.performance().congestion_events});
+            }
+            if(const auto change=adaptive_stream.write_due(now_ms)) {
+                const bool fps=change->kind==AdaptiveStream::Kind::Fps;
+                const bool accepted=fps ? session.set_fps(change->fps) :
+                    session.set_bitrate_range(change->bitrate.minimum,change->bitrate.maximum);
+                const bool completed=adaptive_stream.sent(now_ms,accepted);
+                if(accepted) {
+                    active_fps_=adaptive_stream.fps();media_.set_fps(active_fps_);
+                    smoothness_protection_=adaptive_stream.protecting();
+                }
+                if(completed) {
+                    progress_(fps ? "STREAM_AUTO_FPS_SENT" : "STREAM_AUTO_BITRATE_SENT",
+                        fps ? change->fps : change->bitrate.maximum,0);
+                    if(fps) {keyframe_after_settings=true;settings_keyframe_at=now+std::chrono::milliseconds(500);}
+                }
+            }
+        } else {adaptive_stream.suspend();next_adaptive_sample=now;}
         network_latency_.sample(now_ms,[&session]{return session.network_rtt_ms();});
         // A queued Continue (overlay row or automation) becomes one held
         // XInput A frame when the server enabled a virtual pad, and a normal

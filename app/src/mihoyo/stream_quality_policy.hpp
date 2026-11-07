@@ -5,8 +5,8 @@
 
 namespace cloudgenshin {
 struct StreamBitrateRange {int minimum,maximum;}; // Decimal kbps in application policy.
-// Keep a useful floor even in the lowest tier, while leaving room for recovery
-// to lower the ceiling without building latency. Both services use these tiers.
+// Selected quality ranges. Weak-network protection can temporarily lower a
+// higher tier's range, bounded by the lowest tier's 3000 kbps floor.
 inline constexpr std::array<StreamBitrateRange,3> kStreamQualityBitrates{{
     {6000,12000},{4000,8000},{3000,4000}}};
 inline std::optional<StreamBitrateRange> StreamQualityBitrate(int tier) {

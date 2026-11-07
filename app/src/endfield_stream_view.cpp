@@ -3,7 +3,7 @@
 #include "endfield/entry_probe_policy.hpp"
 #include "endfield/diagnostic_event_policy.hpp"
 #include "endfield/audio_offer_policy.hpp"
-#include "endfield/adaptive_bitrate.hpp"
+#include "mihoyo/adaptive_stream_policy.hpp"
 
 #include "app_paths.hpp"
 #include "app_version.hpp"
@@ -719,7 +719,8 @@ void EndfieldStreamView::network_loop(VlinkSdkData sdk,std::string auth_code,
     SettingSendBudget bitrate_budget,fps_budget;
     bool settings_were_ready=false,keyframe_after_settings=false;
     auto settings_keyframe_at=started;
-    AdaptiveBitrate adaptive_bitrate;
+    AdaptiveStream adaptive_stream;
+    auto next_adaptive_sample=started;
     bool settings_reported=false;
     bool entry_click_enabled=false;
     bool confirm_enabled=false;
@@ -834,7 +835,8 @@ void EndfieldStreamView::network_loop(VlinkSdkData sdk,std::string auth_code,
                     fps_request_.retry();
                     keyframe_after_settings=true;settings_keyframe_at=now+std::chrono::milliseconds(500);
                     const auto range=kStreamBitrates[request->value()];
-                    adaptive_bitrate.configure(range.minimum,range.maximum,setting_now);
+                    adaptive_stream.configure(range,fps_request_.snapshot().value(),setting_now);
+                    smoothness_protection_=false;
                     active_bitrate_limit_=range.maximum;
                     progress_("ENDFIELD_BITRATE_REQUEST_SENT",kStreamBitrates[request->value()].maximum,0);
                     progress_("STREAM_BITRATE_MIN_KBPS",range.minimum,0);
@@ -843,11 +845,13 @@ void EndfieldStreamView::network_loop(VlinkSdkData sdk,std::string auth_code,
             if(const auto request=fps_request_.pending();request && settings_ready_ && fps_budget.try_write(*request,setting_now)) {
                 const bool accepted=session.set_fps(request->value());
                 fps_budget.sent(accepted);
-                if(accepted) media_.set_fps(request->value());
+                if(accepted) {media_.set_fps(request->value());active_fps_=request->value();}
                 if(fps_budget.delivered() || fps_budget.exhausted())
                     fps_request_.complete(*request,fps_budget.delivered());
                 if(fps_budget.delivered()) {
                     fps_sent=true;accepted_fps_=request->value();persist_stream_settings();
+                    adaptive_stream.manual_fps(request->value(),setting_now);
+                    smoothness_protection_=adaptive_stream.protecting();
                     keyframe_after_settings=true;settings_keyframe_at=now+std::chrono::milliseconds(500);
                     progress_("STREAM_FPS_SENT",request->value(),0);
                 } else if(fps_budget.exhausted()) progress_("ENDFIELD_FPS_REQUEST_FAILED",request->value(),0);
@@ -865,6 +869,32 @@ void EndfieldStreamView::network_loop(VlinkSdkData sdk,std::string auth_code,
                 }
             }
         }
+        if(settings_ready_ && bitrate_request_.snapshot().state()==overlay::SettingRequest::State::Sent &&
+           fps_request_.snapshot().state()==overlay::SettingRequest::State::Sent) {
+            const auto at=std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
+            if(now>=next_adaptive_sample) {
+                next_adaptive_sample=now+std::chrono::seconds(1);
+                if(const auto stats=session.video_rtp_stats()) adaptive_stream.observe(at,
+                    {stats->access_units_completed,stats->access_units_dropped,stats->reorder_timeout_skips,
+                     stats->reorder_capacity_skips,media_.performance().congestion_events});
+            }
+            if(const auto change=adaptive_stream.write_due(at)) {
+                const bool fps=change->kind==AdaptiveStream::Kind::Fps;
+                const bool accepted=fps ? session.set_fps(change->fps) :
+                    session.set_bitrate_range(change->bitrate.minimum,change->bitrate.maximum);
+                const bool completed=adaptive_stream.sent(at,accepted);
+                if(accepted) {
+                    active_fps_=adaptive_stream.fps();media_.set_fps(active_fps_);
+                    active_bitrate_limit_=adaptive_stream.bitrate().maximum;
+                    smoothness_protection_=adaptive_stream.protecting();
+                }
+                if(completed) {
+                    progress_(fps ? "STREAM_AUTO_FPS_SENT" : "STREAM_AUTO_BITRATE_SENT",
+                        fps ? change->fps : change->bitrate.maximum,0);
+                    if(fps) {keyframe_after_settings=true;settings_keyframe_at=now+std::chrono::milliseconds(500);}
+                }
+            }
+        } else {adaptive_stream.suspend();next_adaptive_sample=now;}
         if(now>=next_snapshot) {
             cloudgenshin::input::MotionSample motion;
             {std::lock_guard lock(mutex_);motion=motion_input_;}
@@ -921,18 +951,7 @@ void EndfieldStreamView::network_loop(VlinkSdkData sdk,std::string auth_code,
                 progress_("VIDEO_RTP_WINDOW_PEAK",stats->reorder_peak_packets,0);
                 progress_("VIDEO_RTP_WINDOW_GROWTHS",stats->reorder_growths,0);
                 progress_("VIDEO_RTP_WINDOW_ALLOC_FAILURES",stats->reorder_growth_failures,0);
-                if(settings_ready_ && !bitrate_request_.pending()) {
-                    const auto at=std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
-                    const AdaptiveBitrate::Sample sample{stats->access_units_completed,stats->access_units_dropped,
-                        stats->reorder_timeout_skips,stats->reorder_capacity_skips};
-                    if(const auto limit=adaptive_bitrate.observe(at,sample)) {
-                        const bool accepted=session.set_bitrate_range(adaptive_bitrate.minimum(),*limit);
-                        adaptive_bitrate.sent(at,accepted);
-                        active_bitrate_limit_=adaptive_bitrate.current();
-                        progress_(accepted ? "ENDFIELD_ADAPTIVE_BITRATE_SENT" : "ENDFIELD_ADAPTIVE_BITRATE_SEND_FAILED",*limit,0);
-                    }
-                }
-                progress_("ENDFIELD_ADAPTIVE_BITRATE_CEILING",adaptive_bitrate.current(),0);
+                progress_("ENDFIELD_ADAPTIVE_BITRATE_CEILING",adaptive_stream.bitrate().maximum,0);
             }
             // snapshot_counters emits the completion marker. Transport stats
             // must precede it so archive readers do not pair this window's

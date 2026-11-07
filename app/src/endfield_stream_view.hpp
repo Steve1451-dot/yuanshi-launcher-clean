@@ -162,6 +162,8 @@ private:
     cloudgenshin::overlay::StreamHealth stream_health_;
     cloudgenshin::overlay::NetworkLatency network_latency_;
     cloudgenshin::overlay::SettingRequest bitrate_request_,fps_request_;
+    std::atomic_bool smoothness_protection_{false};
+    std::atomic_int active_fps_{0}; // Last locally accepted request, not measured FPS.
     std::atomic_bool settings_ready_{false},continue_requested_{false};
     std::atomic_int active_bitrate_limit_{0}; // Local accepted cap; not measured bitrate or server ACK.
     int initial_fps_=kDefaultStreamFps;

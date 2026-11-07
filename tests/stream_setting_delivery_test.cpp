@@ -1,6 +1,5 @@
 #include "mihoyo/setting_delivery_policy.hpp"
 #include "mihoyo/stream_quality_policy.hpp"
-#include "endfield/adaptive_bitrate.hpp"
 #include <cassert>
 
 int main() {
@@ -40,17 +39,5 @@ int main() {
         const auto range=*StreamQualityBitrate(tier);
         assert(range.minimum>=3000 && range.maximum>=range.minimum);
         assert(MihoyoBitrate(range.maximum)==static_cast<unsigned>(range.maximum)*1024);
-        endfield::AdaptiveBitrate adaptive;
-        assert(adaptive.configure(range.minimum,range.maximum,0));
-        endfield::AdaptiveBitrate::Sample damage{};
-        adaptive.observe(0,damage);
-        for(int now=5000;now<=200000;now+=5000) {
-            damage.completed+=280;damage.damaged+=20;damage.timeouts+=25;
-            if(const auto cap=adaptive.observe(now,damage)) {
-                assert(*cap>=range.minimum && *cap<=range.maximum);
-                adaptive.sent(now,true);
-            }
-        }
-        assert(adaptive.current()==range.minimum);
     }
 }

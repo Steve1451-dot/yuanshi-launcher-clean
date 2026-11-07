@@ -696,6 +696,7 @@ inline std::string Text(std::string_view key,bool use_chinese=chinese) {
         {"Confirm stop + return","确认停止并返回"},
         {"Decoded FPS / video payload only","实测解码帧率 / 视频有效载荷码率，非网络延迟"},
         {"Hardware decode","硬件解码"},{"Software decode","软件解码"},
+        {"Smoothness protection","流畅保护中"},{"Auto: 30 FPS","自动调整：30 帧"},
         {"Control ready","控制通道就绪"},{"Control not ready","控制通道未就绪"},
         {"Adaptive cap request","自适应上限请求"},
         {"Initial FPS","初始目标帧率"},{"Drops","丢帧"},{"Errors","错误"},

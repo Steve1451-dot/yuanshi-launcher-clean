@@ -96,6 +96,16 @@ int main(int argc,char** argv) {
         DrawCompactStreamMenu(nullptr,{0,0,1280,720},menu,5,status);
         assert(Has(ui::Text("Confirm stop + return")));
         status.confirm_exit=false;
+        fps.complete(*fps.pending(),true);status.fps=fps.snapshot();
+        status.smoothness_protection=true;status.active_fps=30;texts.clear();
+        DrawCompactStreamMenu(nullptr,{0,0,1280,720},menu,1,status);
+        assert(Has(ui::Text("Smoothness protection")) && Has(ui::Text("Auto: 30 FPS")));
+        assert(status.fps.value()==60); // User preference still shows in the submenu.
+        fps.request(60);status.fps=fps.snapshot();menu.select(1,2,60);texts.clear();
+        DrawCompactStreamMenu(nullptr,{0,0,1280,720},menu,1,status);
+        assert(Has(ui::Text("Pending send")) && !Has(ui::Text("Auto: 30 FPS")));
+        status.smoothness_protection=false;status.active_fps=60;
+        menu.reset();
         quality.complete(*quality.pending(),false);status.quality=quality.snapshot();
         menu.select(0,2,60);texts.clear();
         DrawCompactStreamMenu(nullptr,{0,0,1280,720},menu,2,status);

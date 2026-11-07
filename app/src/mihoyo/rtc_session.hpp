@@ -89,6 +89,8 @@ public:
     // proto.msg control requests over the signaling proxy channel, matching the
     // official floating-ball quality/fps switches.
     bool set_graphics_mode(std::int32_t mode);
+    // Application kbps, matching StreamBitrateRange (wire units are x1024).
+    bool set_bitrate_range(int minimum,int maximum);
     bool set_fps(std::uint32_t fps);
     // Clear held input state on the pod (RtcDataChannel type 31). The official
     // app uses TOUCH_SCREEN when its UI takes over; REGULAR gamepad/touch frames

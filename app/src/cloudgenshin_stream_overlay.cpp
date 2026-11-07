@@ -214,6 +214,7 @@ void CloudGenshinStreamView::draw_overlay(NVGcontext* vg,overlay::Rect bounds) {
     status.continue_ready=status.control_ready && media_.decoded()>0;
     status.hud=stats_visible_;status.hardware_preferred=decoder_selection_.preferred();status.confirm_exit=confirm_exit_;
     status.quality=graphics_request_.snapshot();status.fps=fps_request_.snapshot();
+    status.smoothness_protection=smoothness_protection_;status.active_fps=active_fps_;
     overlay::DrawCompactStreamMenu(vg,bounds,stream_menu_,quality_menu_index_,status);
     nvgRestore(vg);
 }

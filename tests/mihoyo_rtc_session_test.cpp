@@ -83,6 +83,7 @@ int main() {
     assert(session.network_rtt_ms()==-1);
     assert(!session.is_authenticated() && !live_peer && creates==0);
     assert(!session.set_graphics_mode(0) && !session.set_fps(60));
+    assert(!session.set_bitrate_range(3000,4000));
     auto sent=frames(latest());assert(sent.size()==1 && sent[0].opcode==2);
     const auto initial=signaling::DecodeFrame({sent[0].payload.begin(),sent[0].payload.end()});
     assert(initial && initial->type==signaling::MessageType::Proxy && control::DecodePacket(initial->payload)->command==control::kStartGameReq);
@@ -146,7 +147,13 @@ int main() {
     }
     const auto before_invalid=frames(latest()).size();
     assert(!session.set_graphics_mode(-1) && !session.set_graphics_mode(3));session.poll();
+    assert(!session.set_bitrate_range(2999,4000) && !session.set_bitrate_range(4000,3000) &&
+        !session.set_bitrate_range(3000,12001));session.poll();
     assert(frames(latest()).size()==before_invalid);
+    assert(session.set_bitrate_range(3000,3300));session.poll();
+    const auto limited=frames(latest()).back();
+    const auto limited_signal=signaling::DecodeFrame({limited.payload.begin(),limited.payload.end()});
+    assert(limited_signal && limited_signal->payload==control::EncodeSetBitrate(MihoyoBitrate(3000),MihoyoBitrate(3300)));
     for(const auto fps:{30,60}) {
         assert(session.set_fps(fps));session.poll();
         const auto outgoing=frames(latest()).back();
